@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../theme.dart';
+
 /// Six OTP boxes backed by one invisible TextField, so typing, backspace,
 /// paste and SMS autofill all just work.
 class OtpInput extends StatefulWidget {
@@ -51,23 +53,31 @@ class _OtpInputState extends State<OtpInput> {
                 children: List.generate(widget.length, (i) {
                   final isCurrent = _focus.hasFocus &&
                       (i == text.length || (i == widget.length - 1 && text.length == widget.length));
+                  final filled = i < text.length;
                   final borderColor = widget.hasError
                       ? scheme.error
                       : isCurrent
-                          ? scheme.primary
-                          : scheme.outlineVariant;
+                          ? AppColors.forest
+                          : filled
+                              ? AppColors.leaf
+                              : AppColors.mintLine;
                   return Expanded(
-                    child: Container(
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
                       margin: const EdgeInsets.symmetric(horizontal: 4),
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: borderColor, width: isCurrent ? 2 : 1),
+                        color: filled ? AppColors.mint : Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: borderColor, width: isCurrent ? 2 : 1.5),
+                        boxShadow: isCurrent
+                            ? [BoxShadow(color: AppColors.forest.withValues(alpha: 0.15), blurRadius: 10)]
+                            : null,
                       ),
                       child: Text(
-                        i < text.length ? text[i] : '',
-                        style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                        filled ? text[i] : '',
+                        style: theme.textTheme.headlineSmall
+                            ?.copyWith(fontWeight: FontWeight.w800, color: AppColors.forestDark),
                       ),
                     ),
                   );

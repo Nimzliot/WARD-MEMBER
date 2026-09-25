@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../theme.dart';
+
 /// Bottom navigation for the main (post-onboarding) tabs.
 class AppShell extends StatelessWidget {
   const AppShell({super.key, required this.shell});
@@ -11,18 +13,38 @@ class AppShell extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: shell,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: shell.currentIndex,
-        onDestinationSelected: (i) => shell.goBranch(i, initialLocation: i == shell.currentIndex),
+      bottomNavigationBar: AppNavBar(
+        index: shell.currentIndex,
+        onSelect: (i) => shell.goBranch(i, initialLocation: i == shell.currentIndex),
+      ),
+    );
+  }
+}
+
+class AppNavBar extends StatelessWidget {
+  const AppNavBar({super.key, required this.index, required this.onSelect});
+
+  final int index;
+  final ValueChanged<int> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: AppColors.mintLine)),
+      ),
+      child: NavigationBar(
+        selectedIndex: index,
+        onDestinationSelected: onSelect,
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.list_alt_outlined),
-            selectedIcon: Icon(Icons.list_alt),
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home_rounded),
             label: 'Proposals',
           ),
           NavigationDestination(
-            icon: Icon(Icons.bar_chart_outlined),
-            selectedIcon: Icon(Icons.bar_chart),
+            icon: Icon(Icons.insights_outlined),
+            selectedIcon: Icon(Icons.insights_rounded),
             label: 'Results',
           ),
           NavigationDestination(

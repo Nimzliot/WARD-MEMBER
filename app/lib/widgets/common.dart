@@ -45,19 +45,24 @@ class MessageBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final bg = isError ? scheme.errorContainer : scheme.secondaryContainer;
-    final fg = isError ? scheme.onErrorContainer : scheme.onSecondaryContainer;
+    const errorFg = Color(0xFF9B1C1C);
+    final bg = isError ? const Color(0xFFFDEEEC) : AppColors.mint;
+    final border = isError ? const Color(0xFFF6CFCA) : AppColors.mintLine;
+    final fg = isError ? errorFg : AppColors.forestDark;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: border),
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(isError ? Icons.error_outline : Icons.info_outline, color: fg, size: 20),
           const SizedBox(width: 10),
-          Expanded(child: Text(message, style: TextStyle(color: fg))),
+          Expanded(child: Text(message, style: TextStyle(color: fg, fontSize: 13.5, height: 1.4))),
         ],
       ),
     );
@@ -138,7 +143,12 @@ class ErrorView extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.cloud_off, size: 48, color: Theme.of(context).colorScheme.error),
+              Container(
+                width: 72,
+                height: 72,
+                decoration: const BoxDecoration(color: Color(0xFFFDEEEC), shape: BoxShape.circle),
+                child: const Icon(Icons.cloud_off_rounded, size: 34, color: Color(0xFF9B1C1C)),
+              ),
               const SizedBox(height: 12),
               Text(message, textAlign: TextAlign.center),
               const SizedBox(height: 16),
@@ -169,7 +179,12 @@ class EmptyView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 48, color: muted),
+            Container(
+              width: 72,
+              height: 72,
+              decoration: const BoxDecoration(color: AppColors.mint, shape: BoxShape.circle),
+              child: Icon(icon, size: 34, color: AppColors.forest),
+            ),
             const SizedBox(height: 12),
             Text(message, textAlign: TextAlign.center, style: TextStyle(color: muted)),
           ],
@@ -205,32 +220,6 @@ class VerifiedBadge extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-/// Small "Step 1 of 2" style progress header for the onboarding screens.
-class StepHeader extends StatelessWidget {
-  const StepHeader({super.key, required this.step, required this.total, required this.title});
-
-  final int step;
-  final int total;
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('STEP $step OF $total',
-            style: theme.textTheme.labelMedium?.copyWith(
-                color: theme.colorScheme.primary, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
-        const SizedBox(height: 8),
-        LinearProgressIndicator(value: step / total, borderRadius: BorderRadius.circular(4)),
-        const SizedBox(height: 20),
-        Text(title, style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
-      ],
     );
   }
 }

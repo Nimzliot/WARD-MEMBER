@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 /// Green & white brand palette.
 class AppColors {
@@ -60,11 +59,8 @@ class AppTheme {
       onInverseSurface: Colors.white,
     );
 
-    final base = ThemeData(useMaterial3: true, colorScheme: scheme);
-    final text = GoogleFonts.plusJakartaSansTextTheme(base.textTheme).apply(
-      bodyColor: AppColors.ink,
-      displayColor: AppColors.ink,
-    );
+    final base = ThemeData(useMaterial3: true, colorScheme: scheme, fontFamily: 'Jakarta');
+    final text = base.textTheme.apply(bodyColor: AppColors.ink, displayColor: AppColors.ink);
     final radius = BorderRadius.circular(14);
 
     return base.copyWith(

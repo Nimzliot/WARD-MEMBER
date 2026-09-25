@@ -12,3 +12,4 @@ language sql stable security definer set search_path = public as $$
     (select count(*) from public.votes where ward_id = p_ward_id)
   where p_ward_id = public.my_ward_id() or public.is_admin()
 $$;
+T

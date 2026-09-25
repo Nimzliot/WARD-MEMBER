@@ -42,7 +42,7 @@ class WardProvider extends ChangeNotifier {
     try {
       final results = await Future.wait<dynamic>([
         _sb.from('wards').select().eq('id', id).single(),
-        _sb.from('proposals').select('*, budget_items(*)').eq('ward_id', id).order('created_at'),
+        _sb.from('proposals').select('*, budget_items(*)').eq('ward_id', id).order('created_at', ascending: true),
         _sb.rpc('my_vote'), // proposal id I voted for, or null
       ]);
       if (id != wardId) return; // ward changed while loading

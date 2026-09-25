@@ -23,6 +23,10 @@ class BudgetBreakdown extends StatelessWidget {
     ];
   }
 
+  /// Largest line = darkest green; a folded "Other" row is neutral grey.
+  Color _color(int i, int count) =>
+      (items.length > kMaxSeries && i == count - 1) ? kNeutralChart : rampColor(i);
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -49,7 +53,7 @@ class BudgetBreakdown extends StatelessWidget {
                         flex: (rows[i].amount * 1000 / total).round().clamp(1, 1000),
                         child: Container(
                           margin: EdgeInsets.only(right: i == rows.length - 1 ? 0 : 2),
-                          color: seriesColor(context, i),
+                          color: _color(i, rows.length),
                         ),
                       ),
                   ],
@@ -67,7 +71,7 @@ class BudgetBreakdown extends StatelessWidget {
                       width: 12,
                       height: 12,
                       decoration: BoxDecoration(
-                        color: seriesColor(context, i),
+                        color: _color(i, rows.length),
                         borderRadius: BorderRadius.circular(3),
                       ),
                     ),

@@ -5,6 +5,7 @@ import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
 import '../utils/errors.dart';
 import '../utils/format.dart';
+import '../widgets/brand.dart';
 import '../widgets/common.dart';
 import '../widgets/otp_input.dart';
 
@@ -51,7 +52,8 @@ class _PhoneOtpScreenState extends State<PhoneOtpScreen> {
       setState(() {
         _sent = true;
         _code.clear();
-        _info = '${res['message'] ?? 'OTP sent'}'
+        _info =
+            '${res['message'] ?? 'OTP sent'}'
             '${res['devMode'] == true ? '\nDEV_MODE: the code is printed in the server console.' : ''}';
       });
       return (res['resendIn'] as num?)?.toInt() ?? 60;
@@ -104,55 +106,67 @@ class _PhoneOtpScreenState extends State<PhoneOtpScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const StepHeader(step: 1, total: 2, title: 'Verify your mobile'),
-              const SizedBox(height: 8),
-              Text.rich(
-                TextSpan(children: [
-                  const TextSpan(text: 'Enter the 6-digit code sent by SMS to '),
-                  TextSpan(text: formatPhone(phone), style: const TextStyle(fontWeight: FontWeight.bold)),
-                ]),
-                style: theme.textTheme.bodyMedium,
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            OnboardingHeader(
+              step: 1,
+              total: 2,
+              icon: Icons.sms_outlined,
+              title: 'Check your SMS',
+              subtitle: TextSpan(
+                children: [
+                  const TextSpan(text: 'Enter the 6-digit code sent to\n'),
+                  TextSpan(
+                    text: formatPhone(phone),
+                    style: const TextStyle(fontWeight: FontWeight.w800, color: Colors.white),
+                  ),
+                ],
               ),
-              const SizedBox(height: 28),
-              OtpInput(
-                controller: _code,
-                enabled: !_verifying,
-                hasError: _error != null,
-                onCompleted: (_) => _verify(),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  OtpInput(
+                    controller: _code,
+                    enabled: !_verifying,
+                    hasError: _error != null,
+                    onCompleted: (_) => _verify(),
+                  ),
+                  const SizedBox(height: 8),
+                  Center(
+                    child: _sent
+                        ? ResendTimer(key: ValueKey(_resendIn), initialSeconds: _resendIn, onResend: _send)
+                        : const Padding(
+                            padding: EdgeInsets.all(12),
+                            child: SizedBox.square(
+                              dimension: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                  ),
+                  const SizedBox(height: 8),
+                  if (_error != null) ...[MessageBanner(_error!), const SizedBox(height: 12)],
+                  if (_info != null) ...[MessageBanner(_info!, isError: false), const SizedBox(height: 12)],
+                  ListenableBuilder(
+                    listenable: _code,
+                    builder: (context, _) => PrimaryButton(
+                      label: 'Verify & sign in',
+                      loading: _verifying,
+                      onPressed: _code.text.length == 6 ? _verify : null,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'The code expires in 5 minutes. You have 3 attempts per code.',
+                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                ],
               ),
-              const SizedBox(height: 8),
-              Center(
-                child: _sent
-                    ? ResendTimer(key: ValueKey(_resendIn), initialSeconds: _resendIn, onResend: _send)
-                    : const Padding(
-                        padding: EdgeInsets.all(12),
-                        child: SizedBox.square(
-                            dimension: 20, child: CircularProgressIndicator(strokeWidth: 2)),
-                      ),
-              ),
-              const SizedBox(height: 8),
-              if (_error != null) ...[MessageBanner(_error!), const SizedBox(height: 12)],
-              if (_info != null) ...[MessageBanner(_info!, isError: false), const SizedBox(height: 12)],
-              ListenableBuilder(
-                listenable: _code,
-                builder: (context, _) => PrimaryButton(
-                  label: 'Verify & sign in',
-                  loading: _verifying,
-                  onPressed: _code.text.length == 6 ? _verify : null,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text('The code expires in 5 minutes. You have 3 attempts per code.',
-                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

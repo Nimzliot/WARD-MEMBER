@@ -11,6 +11,7 @@ import '../providers/ward_provider.dart';
 import '../theme.dart';
 import '../utils/categories.dart';
 import '../utils/format.dart';
+import '../widgets/brand.dart';
 import '../widgets/common.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -27,100 +28,92 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final profile = context.watch<AuthProvider>().profile!;
     final wp = context.watch<WardProvider>();
-    final theme = Theme.of(context);
+    final firstName = profile.fullName?.trim().split(' ').first ?? '';
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(wp.ward?.name ?? profile.wardName ?? 'My ward'),
-            Text('Participatory Budget 2026–27',
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-          ],
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Profile',
-            icon: const Icon(Icons.account_circle_outlined),
-            onPressed: () => context.push('/profile'),
-          ),
-        ],
-      ),
-      body: _buildBody(context, wp, profile.fullName),
+    final header = BrandHeader(
+      title: 'Namaste, $firstName',
+      subtitle: '${wp.ward?.name ?? profile.wardName ?? 'My ward'} · Budget 2026–27',
+      actions: [InitialsAvatar(name: profile.fullName, onTap: () => context.push('/profile'))],
+      bottomPadding: 48, // room for the overlapping assistant card
+      child: wp.ward == null
+          ? null
+          : _PoolSummary(ward: wp.ward!, requested: wp.totalRequested, count: wp.proposals.length),
     );
-  }
 
-  Widget _buildBody(BuildContext context, WardProvider wp, String? fullName) {
-    if (wp.proposals.isEmpty && (wp.loading || wp.ward == null) && wp.error == null) {
-      return const Center(child: CircularProgressIndicator());
+    if (wp.proposals.isEmpty && wp.error == null) {
+      return Scaffold(
+        body: Column(children: [header, const Expanded(child: Center(child: CircularProgressIndicator()))]),
+      );
     }
     if (wp.error != null && wp.proposals.isEmpty) {
-      return ErrorView(message: wp.error!, onRetry: wp.load);
+      return Scaffold(
+        body: Column(children: [header, Expanded(child: ErrorView(message: wp.error!, onRetry: wp.load))]),
+      );
     }
 
     final categories = {for (final p in wp.proposals) p.category}.toList()..sort();
-    final visible = _category == null
-        ? wp.proposals
-        : wp.proposals.where((p) => p.category == _category).toList();
+    final visible =
+        _category == null ? wp.proposals : wp.proposals.where((p) => p.category == _category).toList();
 
-    return RefreshIndicator(
-      onRefresh: wp.load,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-        children: [
-          Text('Namaste, ${fullName?.split(' ').first ?? ''}',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.5)),
-          const SizedBox(height: 12),
-          if (wp.ward != null) _BudgetSummaryCard(ward: wp.ward!, requested: wp.totalRequested, count: wp.proposals.length),
-          const SizedBox(height: 12),
-          const _AssistantBanner(),
-          const SizedBox(height: 12),
-          _VoteStatusCard(votedFor: wp.myVotedProposal),
-          const SizedBox(height: 16),
-          if (categories.length > 1)
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
+    return Scaffold(
+      body: RefreshIndicator(
+        onRefresh: wp.load,
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            header,
+            const OverlapHeader(
+              by: 30,
+              child: Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: _AssistantBanner()),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  ChoiceChip(
-                    label: const Text('All'),
-                    selected: _category == null,
-                    onSelected: (_) => setState(() => _category = null),
-                  ),
-                  for (final c in categories) ...[
-                    const SizedBox(width: 8),
-                    ChoiceChip(
-                      avatar: Icon(categoryIcon(c), size: 18),
-                      label: Text(c),
-                      selected: _category == c,
-                      onSelected: (_) => setState(() => _category = _category == c ? null : c),
+                  _VoteStatusCard(votedFor: wp.myVotedProposal),
+                  const SizedBox(height: 24),
+                  SectionTitle('Proposals', count: wp.proposals.length),
+                  if (categories.length > 1) ...[
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(children: [
+                        _FilterChip(label: 'All', selected: _category == null, onTap: () => setState(() => _category = null)),
+                        for (final c in categories)
+                          _FilterChip(
+                            label: c,
+                            icon: categoryIcon(c),
+                            selected: _category == c,
+                            onTap: () => setState(() => _category = _category == c ? null : c),
+                          ),
+                      ]),
                     ),
+                    const SizedBox(height: 14),
                   ],
+                  if (visible.isEmpty)
+                    const EmptyView(icon: Icons.inbox_outlined, message: 'No proposals in this ward yet.')
+                  else
+                    for (final p in visible) ...[
+                      _ProposalCard(
+                        proposal: p,
+                        pool: wp.ward?.budgetPool ?? 0,
+                        isMyVote: wp.myVoteProposalId == p.id,
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                 ],
               ),
             ),
-          const SizedBox(height: 12),
-          if (visible.isEmpty)
-            const EmptyView(icon: Icons.inbox_outlined, message: 'No proposals in this ward yet.')
-          else
-            for (final p in visible) ...[
-              _ProposalCard(
-                proposal: p,
-                pool: wp.ward?.budgetPool ?? 0,
-                isMyVote: wp.myVoteProposalId == p.id,
-              ),
-              const SizedBox(height: 12),
-            ],
-        ],
+          ],
+        ),
       ),
     );
   }
 }
 
-class _BudgetSummaryCard extends StatelessWidget {
-  const _BudgetSummaryCard({required this.ward, required this.requested, required this.count});
+/// Budget pool numbers shown inside the green header.
+class _PoolSummary extends StatelessWidget {
+  const _PoolSummary({required this.ward, required this.requested, required this.count});
 
   final Ward ward;
   final int requested;
@@ -128,52 +121,54 @@ class _BudgetSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final over = requested - ward.budgetPool;
     final fundable = requested == 0 ? 1.0 : math.min(1.0, ward.budgetPool / requested);
-    final soft = Colors.white.withValues(alpha: 0.85);
 
-    return HeroCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('WARD BUDGET POOL',
-              style: theme.textTheme.labelMedium
-                  ?.copyWith(color: AppColors.leaf, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
-          const SizedBox(height: 4),
-          Text(inr(ward.budgetPool),
-              style: theme.textTheme.headlineMedium
-                  ?.copyWith(fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.6)),
-          const SizedBox(height: 16),
-          Row(children: [
-            _stat(theme, '$count', 'proposals'),
-            _stat(theme, inrCompact(requested), 'requested'),
-            _stat(theme, '${(fundable * 100).round()}%', 'can be funded'),
-          ]),
-          const SizedBox(height: 14),
-          HeroProgress(value: fundable),
-          const SizedBox(height: 10),
-          Text(
-            over > 0
-                ? 'Requests exceed the pool by ${inrCompact(over)}. Your vote decides what gets built.'
-                : 'All proposals fit within the pool.',
-            style: theme.textTheme.bodySmall?.copyWith(color: soft, height: 1.4),
+    Widget tile(String value, String label) => Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(value, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 2),
+              Text(label, style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 11.5)),
+            ]),
           ),
-        ],
-      ),
+        );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const HeaderLabel('Ward budget pool'),
+        const SizedBox(height: 2),
+        HeaderNumber(inr(ward.budgetPool)),
+        const SizedBox(height: 14),
+        Row(children: [
+          tile('$count', 'proposals'),
+          const SizedBox(width: 8),
+          tile(inrCompact(requested), 'requested'),
+          const SizedBox(width: 8),
+          tile('${(fundable * 100).round()}%', 'can be funded'),
+        ]),
+        const SizedBox(height: 14),
+        HeroProgress(value: fundable),
+        const SizedBox(height: 8),
+        Text(
+          over > 0
+              ? 'Requests exceed the pool by ${inrCompact(over)}. Your vote decides what gets built.'
+              : 'All proposals fit within the pool.',
+          style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 12.5, height: 1.4),
+        ),
+      ],
     );
   }
-
-  Widget _stat(ThemeData theme, String value, String label) => Expanded(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(value,
-              style: theme.textTheme.titleMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
-          Text(label, style: theme.textTheme.bodySmall?.copyWith(color: Colors.white.withValues(alpha: 0.7))),
-        ]),
-      );
 }
 
-/// Entry point to the Ward Assistant (AI) tab.
+/// Entry point to the Ward Assistant (AI) tab, floating over the header edge.
 class _AssistantBanner extends StatelessWidget {
   const _AssistantBanner();
 
@@ -184,6 +179,7 @@ class _AssistantBanner extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: const LinearGradient(colors: [AppColors.leaf, AppColors.emerald, AppColors.forest]),
         borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: AppColors.forestDark.withValues(alpha: 0.18), blurRadius: 18, offset: const Offset(0, 8))],
       ),
       child: Material(
         color: Colors.white,
@@ -210,7 +206,12 @@ class _AssistantBanner extends StatelessWidget {
                       style: TextStyle(fontSize: 12.5, color: AppColors.inkMuted)),
                 ]),
               ),
-              const Icon(Icons.arrow_forward_rounded, color: AppColors.forest),
+              Container(
+                width: 32,
+                height: 32,
+                decoration: const BoxDecoration(color: AppColors.mint, shape: BoxShape.circle),
+                child: const Icon(Icons.arrow_forward_rounded, color: AppColors.forest, size: 18),
+              ),
             ]),
           ),
         ),
@@ -226,28 +227,88 @@ class _VoteStatusCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
     final voted = votedFor != null;
-
     return Card(
-      color: voted ? AppTheme.success.withValues(alpha: 0.12) : scheme.tertiaryContainer,
       clipBehavior: Clip.antiAlias,
-      child: ListTile(
-        leading: Icon(
-          voted ? Icons.check_circle : Icons.how_to_vote_outlined,
-          color: voted ? AppTheme.success : scheme.onTertiaryContainer,
-        ),
-        title: Text(voted ? 'You have voted' : 'You haven\'t voted yet',
-            style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Text(voted
-            ? votedFor!.title
-            : 'Open a proposal and cast your one vote for the project you want funded most.'),
-        trailing: voted ? const Icon(Icons.chevron_right) : null,
+      child: InkWell(
         onTap: voted ? () => context.push('/proposal/${votedFor!.id}') : null,
+        child: IntrinsicHeight(
+          child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Container(width: 5, color: voted ? AppTheme.success : AppColors.leaf),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+                child: Row(children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: voted ? AppTheme.success.withValues(alpha: 0.12) : AppColors.mint,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(voted ? Icons.check_rounded : Icons.how_to_vote_outlined,
+                        color: voted ? AppTheme.success : AppColors.forest, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(voted ? 'You have voted' : 'You haven\'t voted yet',
+                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                      const SizedBox(height: 2),
+                      Text(
+                        voted ? votedFor!.title : 'Pick the one project you want funded most.',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: AppColors.inkMuted, fontSize: 13),
+                      ),
+                    ]),
+                  ),
+                  if (voted) const Icon(Icons.chevron_right, color: AppColors.inkMuted),
+                ]),
+              ),
+            ),
+          ]),
+        ),
       ),
     );
   }
+}
+
+class _FilterChip extends StatelessWidget {
+  const _FilterChip({required this.label, required this.selected, required this.onTap, this.icon});
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(right: 8),
+        child: Material(
+          color: selected ? AppColors.forest : Colors.white,
+          shape: StadiumBorder(side: BorderSide(color: selected ? AppColors.forest : AppColors.mintLine)),
+          child: InkWell(
+            customBorder: const StadiumBorder(),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                if (icon != null) ...[
+                  Icon(icon, size: 16, color: selected ? Colors.white : AppColors.forest),
+                  const SizedBox(width: 6),
+                ],
+                Text(label,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: selected ? Colors.white : AppColors.ink,
+                    )),
+              ]),
+            ),
+          ),
+        ),
+      );
 }
 
 class _ProposalCard extends StatelessWidget {
@@ -259,12 +320,16 @@ class _ProposalCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final share = pool == 0 ? 0 : (proposal.totalCost * 100 / pool).round();
+    final share = pool == 0 ? 0.0 : proposal.totalCost / pool;
 
     return Card(
       clipBehavior: Clip.antiAlias,
+      shape: isMyVote
+          ? RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+              side: const BorderSide(color: AppTheme.success, width: 1.6),
+            )
+          : null,
       child: InkWell(
         onTap: () => context.push('/proposal/${proposal.id}'),
         child: Padding(
@@ -272,58 +337,75 @@ class _ProposalCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(children: [
-                Icon(categoryIcon(proposal.category), size: 18, color: scheme.primary),
-                const SizedBox(width: 6),
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(color: AppColors.mint, borderRadius: BorderRadius.circular(13)),
+                  child: Icon(categoryIcon(proposal.category), color: AppColors.forest, size: 22),
+                ),
+                const SizedBox(width: 12),
                 Expanded(
-                  child: Text(proposal.category,
-                      style: theme.textTheme.labelMedium?.copyWith(color: scheme.primary)),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(proposal.category.toUpperCase(),
+                        style: const TextStyle(
+                            fontSize: 10.5, fontWeight: FontWeight.w800, letterSpacing: 0.9, color: AppColors.emerald)),
+                    const SizedBox(height: 3),
+                    Text(proposal.title,
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, height: 1.25)),
+                  ]),
                 ),
                 if (isMyVote)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppTheme.success.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
+                    margin: const EdgeInsets.only(left: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(color: AppTheme.success, borderRadius: BorderRadius.circular(20)),
                     child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(Icons.check_circle, size: 14, color: AppTheme.success),
-                      SizedBox(width: 4),
+                      Icon(Icons.check_rounded, size: 13, color: Colors.white),
+                      SizedBox(width: 3),
                       Text('Your vote',
-                          style: TextStyle(
-                              color: AppTheme.success, fontWeight: FontWeight.w600, fontSize: 12)),
+                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 11)),
                     ]),
-                  )
-                else
-                  Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
+                  ),
               ]),
-              const SizedBox(height: 8),
-              Text(proposal.title,
-                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 4),
+              const SizedBox(height: 10),
               Text(proposal.description,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
-              const SizedBox(height: 12),
+                  style: const TextStyle(color: AppColors.inkMuted, fontSize: 13.5, height: 1.45)),
+              const SizedBox(height: 14),
               Row(children: [
                 Text(inr(proposal.totalCost),
-                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.forestDark)),
                 const Spacer(),
-                Text('$share% of pool',
-                    style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+                SizedBox(
+                  width: 54,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(value: math.min(1.0, share), minHeight: 6),
+                  ),
+                ),
                 const SizedBox(width: 8),
-                // hint that the AI explanation is one tap away
+                Text('${(share * 100).round()}% of pool',
+                    style: const TextStyle(fontSize: 12, color: AppColors.inkMuted, fontWeight: FontWeight.w600)),
+              ]),
+              const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Divider(height: 1)),
+              Row(children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                   decoration: BoxDecoration(color: AppColors.mint, borderRadius: BorderRadius.circular(20)),
                   child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.auto_awesome, size: 12, color: AppColors.emerald),
-                    SizedBox(width: 4),
+                    Icon(Icons.auto_awesome, size: 13, color: AppColors.emerald),
+                    SizedBox(width: 5),
                     Text('AI explain',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.forest)),
+                        style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: AppColors.forest)),
                   ]),
                 ),
+                const Spacer(),
+                const Text('View details',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.forest)),
+                const SizedBox(width: 2),
+                const Icon(Icons.arrow_forward_rounded, size: 16, color: AppColors.forest),
               ]),
             ],
           ),

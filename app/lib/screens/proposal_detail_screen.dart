@@ -12,6 +12,7 @@ import '../utils/categories.dart';
 import '../utils/errors.dart';
 import '../utils/format.dart';
 import '../widgets/ai_widgets.dart';
+import '../widgets/brand.dart';
 import '../widgets/budget_breakdown.dart';
 import '../widgets/common.dart';
 import '../widgets/vote_receipt_sheet.dart';
@@ -30,10 +31,9 @@ class _ProposalDetailScreenState extends State<ProposalDetailScreen> {
   bool _loadingReceipt = false;
 
   void _snack(String msg, {bool error = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      backgroundColor: error ? Theme.of(context).colorScheme.error : null,
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), backgroundColor: error ? Theme.of(context).colorScheme.error : null),
+    );
   }
 
   Future<void> _vote(Proposal p) async {
@@ -70,12 +70,7 @@ class _ProposalDetailScreenState extends State<ProposalDetailScreen> {
     try {
       final receipt = await wp.castVote(p.id);
       if (mounted) {
-        await showVoteReceipt(
-          context,
-          receipt,
-          justVoted: true,
-          onViewResults: () => context.go('/results'),
-        );
+        await showVoteReceipt(context, receipt, justVoted: true, onViewResults: () => context.go('/results'));
       }
     } catch (e) {
       if (mounted) _snack(friendlyError(e), error: true);
@@ -122,8 +117,6 @@ class _ProposalDetailScreenState extends State<ProposalDetailScreen> {
     final share = pool == 0 ? 0.0 : p.totalCost / pool;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Proposal')),
-      floatingActionButton: AskAiButton(onPressed: () => showAskSheet(context, p)),
       bottomNavigationBar: _VoteBar(
         proposal: p,
         votedForId: wp.myVoteProposalId,
@@ -133,59 +126,109 @@ class _ProposalDetailScreenState extends State<ProposalDetailScreen> {
         loadingReceipt: _loadingReceipt,
         onVote: () => _vote(p),
         onShowReceipt: _showReceipt,
+        onAsk: () => showAskSheet(context, p),
       ),
       body: RefreshIndicator(
         onRefresh: wp.load,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 96), // room for the Ask AI button
+          padding: const EdgeInsets.only(bottom: 24),
           children: [
-            Row(children: [
-              Chip(
-                avatar: Icon(categoryIcon(p.category), size: 18),
-                label: Text(p.category),
-                visualDensity: VisualDensity.compact,
-              ),
-            ]),
-            const SizedBox(height: 8),
-            Text(p.title,
-                style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.4)),
-            const SizedBox(height: 8),
-            Text(p.description,
-                style: theme.textTheme.bodyLarge?.copyWith(color: scheme.onSurfaceVariant, height: 1.45)),
-            const SizedBox(height: 20),
-
-            // Cost vs ward pool
-            HeroCard(
+            BrandHeader(
+              showBack: true,
+              title: 'Proposal',
+              subtitle: wp.ward?.name,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('TOTAL COST',
-                      style: theme.textTheme.labelMedium?.copyWith(
-                          color: AppColors.leaf, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
-                  const SizedBox(height: 4),
-                  Text(inr(p.totalCost),
-                      style: theme.textTheme.headlineMedium
-                          ?.copyWith(fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.5)),
-                  const SizedBox(height: 14),
-                  HeroProgress(value: math.min(1.0, share)),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${(share * 100).toStringAsFixed(0)}% of the ward pool (${inrCompact(pool)})',
-                    style: theme.textTheme.bodySmall?.copyWith(color: Colors.white.withValues(alpha: 0.85)),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(categoryIcon(p.category), size: 15, color: AppColors.leaf),
+                        const SizedBox(width: 6),
+                        Text(
+                          p.category,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
+                  const SizedBox(height: 10),
+                  Text(
+                    p.title,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.5,
+                      height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const HeaderLabel('Total cost'),
+                            const SizedBox(height: 2),
+                            HeaderNumber(inr(p.totalCost), size: 28),
+                          ],
+                        ),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            '${(share * 100).toStringAsFixed(0)}%',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          Text(
+                            'of ${inrCompact(pool)} pool',
+                            style: TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  HeroProgress(value: math.min(1.0, share)),
                 ],
               ),
             ),
-            const SizedBox(height: 16),
-
-            // Ward Assistant — plain-language explanation in EN / Tamil / Hindi
-            ExplainCard(key: ValueKey(p.id), proposal: p),
-            const SizedBox(height: 24),
-
-            Text('Budget breakdown',
-                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            BudgetBreakdown(items: p.items, total: p.totalCost),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SectionTitle('About this proposal'),
+                  Text(
+                    p.description,
+                    style: theme.textTheme.bodyLarge?.copyWith(color: scheme.onSurfaceVariant, height: 1.5),
+                  ),
+                  const SizedBox(height: 20),
+                  // Ward Assistant — plain-language explanation in EN / Tamil / Hindi
+                  ExplainCard(key: ValueKey(p.id), proposal: p),
+                  const SizedBox(height: 28),
+                  SectionTitle('Budget breakdown', count: p.items.length),
+                  BudgetBreakdown(items: p.items, total: p.totalCost),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -215,6 +258,7 @@ class _VoteBar extends StatelessWidget {
     required this.loadingReceipt,
     required this.onVote,
     required this.onShowReceipt,
+    required this.onAsk,
   });
 
   final Proposal proposal;
@@ -225,6 +269,7 @@ class _VoteBar extends StatelessWidget {
   final bool loadingReceipt;
   final VoidCallback onVote;
   final VoidCallback onShowReceipt;
+  final VoidCallback onAsk;
 
   @override
   Widget build(BuildContext context) {
@@ -233,29 +278,37 @@ class _VoteBar extends StatelessWidget {
 
     Widget content;
     if (votedForId == proposal.id) {
-      content = Row(children: [
-        const Icon(Icons.check_circle, color: AppTheme.success),
-        const SizedBox(width: 8),
-        const Expanded(
-          child: Text('You voted for this proposal', style: TextStyle(fontWeight: FontWeight.w600)),
-        ),
-        TextButton.icon(
-          onPressed: loadingReceipt ? null : onShowReceipt,
-          icon: loadingReceipt
-              ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Icon(Icons.receipt_long),
-          label: const Text('Receipt'),
-        ),
-      ]);
+      content = Row(
+        children: [
+          const Icon(Icons.check_circle, color: AppTheme.success),
+          const SizedBox(width: 8),
+          const Expanded(
+            child: Text('You voted for this', style: TextStyle(fontWeight: FontWeight.w600)),
+          ),
+          TextButton.icon(
+            onPressed: loadingReceipt ? null : onShowReceipt,
+            icon: loadingReceipt
+                ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.receipt_long),
+            label: const Text('Receipt'),
+          ),
+        ],
+      );
     } else if (votedForId != null) {
-      content = Row(children: [
-        Icon(Icons.info_outline, color: scheme.onSurfaceVariant),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text('You already voted for "${votedForTitle ?? 'another proposal'}"',
-              style: TextStyle(color: scheme.onSurfaceVariant)),
-        ),
-      ]);
+      content = Row(
+        children: [
+          Icon(Icons.info_outline, color: scheme.onSurfaceVariant),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'You already voted for "${votedForTitle ?? 'another proposal'}"',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
+            ),
+          ),
+        ],
+      );
     } else if (eligibleReason != null) {
       content = MessageBanner(eligibleReason!);
     } else {
@@ -267,12 +320,68 @@ class _VoteBar extends StatelessWidget {
       );
     }
 
-    return Material(
-      color: scheme.surfaceContainer,
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.forestDark.withValues(alpha: 0.10),
+            blurRadius: 20,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
       child: SafeArea(
         top: false,
-        child: Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 12), child: content),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+          // Ask AI sits beside the main action so it never covers budget numbers
+          child: Row(
+            children: [
+              _AskButton(onPressed: onAsk),
+              const SizedBox(width: 10),
+              Expanded(child: content),
+            ],
+          ),
+        ),
       ),
     );
   }
+}
+
+/// Compact gradient "Ask AI" button for the bottom bar.
+class _AskButton extends StatelessWidget {
+  const _AskButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(gradient: AppTheme.aiGradient, borderRadius: BorderRadius.circular(14)),
+    child: Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onPressed,
+        child: const SizedBox(
+          height: 52,
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 14),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.auto_awesome, color: Colors.white, size: 18),
+                SizedBox(width: 6),
+                Text(
+                  'Ask AI',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 }

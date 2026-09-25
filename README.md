@@ -4,6 +4,17 @@ Ward residents see their ward's budget proposals, vote on how the money should b
 
 > Hackathon prototype · SDG 11 Sustainable Cities & Communities · Flutter + Node.js + Supabase
 
+## Screenshots
+| Login | Home | Proposal | AI explain |
+|---|---|---|---|
+| <img src="docs/screenshots/02_login.png" width="200"> | <img src="docs/screenshots/05_home.png" width="200"> | <img src="docs/screenshots/07_proposal.png" width="200"> | <img src="docs/screenshots/08_proposal_explain.png" width="200"> |
+
+| Live results | Ward Assistant | Audit log | Admin |
+|---|---|---|---|
+| <img src="docs/screenshots/09_results.png" width="200"> | <img src="docs/screenshots/11_assistant.png" width="200"> | <img src="docs/screenshots/12_audit.png" width="200"> | <img src="docs/screenshots/14_admin.png" width="200"> |
+
+> Rendered with sample data by `app/tool/screenshots_test.dart` (`flutter test tool/screenshots_test.dart --update-goldens`).
+
 ## Features
 | Area | What it does |
 |---|---|

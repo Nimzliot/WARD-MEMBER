@@ -685,37 +685,6 @@ class _Bubble extends StatelessWidget {
   }
 }
 
-/// Floating "Ask AI" button for the proposal page.
-class AskAiButton extends StatelessWidget {
-  const AskAiButton({super.key, required this.onPressed});
-
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) => DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: AppTheme.aiGradient,
-          borderRadius: BorderRadius.circular(28),
-          boxShadow: [BoxShadow(color: AppColors.forest.withValues(alpha: 0.35), blurRadius: 14, offset: const Offset(0, 6))],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(28),
-            onTap: onPressed,
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.auto_awesome, color: Colors.white, size: 18),
-                SizedBox(width: 8),
-                Text('Ask AI', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
-              ]),
-            ),
-          ),
-        ),
-      );
-}
-
 // =====================================================================
 // 4. Results insight
 // =====================================================================

@@ -16,3 +16,7 @@ release/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Screenshot harness output (regenerate: flutter test tool/screenshots_test.dart --update-goldens)
+app/tool/shots/
+app/tool/sheets/

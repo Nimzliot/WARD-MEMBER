@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../providers/auth_provider.dart';
 import '../providers/ward_provider.dart';
 import '../theme.dart';
 import '../widgets/ai_widgets.dart';
+import '../widgets/brand.dart';
 
 /// "Assistant" tab — chat with the Ward Assistant about the whole ward budget.
 class AssistantScreen extends StatelessWidget {
@@ -12,11 +15,31 @@ class AssistantScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final wardName = context.watch<WardProvider>().ward?.name ?? 'your ward';
+    final profile = context.watch<AuthProvider>().profile;
 
     return Scaffold(
       body: Column(
         children: [
-          _Header(wardName: wardName),
+          BrandHeader(
+            leading: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [AppColors.leaf, AppColors.emerald]),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(Icons.auto_awesome, color: Colors.white, size: 24),
+            ),
+            title: 'Ward Assistant',
+            subtitle: 'AI guide to $wardName',
+            actions: [InitialsAvatar(name: profile?.fullName, onTap: () => context.push('/profile'))],
+            bottomPadding: 18,
+            child: Wrap(spacing: 6, runSpacing: 6, children: const [
+              _Pill(icon: Icons.translate, text: 'English · தமிழ் · हिंदी'),
+              _Pill(icon: Icons.fact_check_outlined, text: 'Answers from ward data'),
+              _Pill(icon: Icons.balance_outlined, text: 'Neutral · never says how to vote'),
+            ]),
+          ),
           const Expanded(
             child: AiChat(
               greeting: 'Namaste! I know every proposal, budget line and live vote count in your ward. '
@@ -37,71 +60,23 @@ class AssistantScreen extends StatelessWidget {
   }
 }
 
-class _Header extends StatelessWidget {
-  const _Header({required this.wardName});
+class _Pill extends StatelessWidget {
+  const _Pill({required this.icon, required this.text});
 
-  final String wardName;
+  final IconData icon;
+  final String text;
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      width: double.infinity,
-      decoration: const BoxDecoration(
-        gradient: AppTheme.heroGradient,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            right: -40,
-            top: -30,
-            child: Container(
-              width: 170,
-              height: 170,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 22),
-              ),
-            ),
-          ),
-          SafeArea(
-            bottom: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 22),
-              child: Row(
-                children: [
-                  Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(colors: [AppColors.leaf, AppColors.emerald]),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Icon(Icons.auto_awesome, color: Colors.white, size: 28),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Ward Assistant',
-                            style: theme.textTheme.titleLarge
-                                ?.copyWith(color: Colors.white, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
-                        const SizedBox(height: 2),
-                        Text('AI guide to $wardName · powered by Gemini',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodySmall?.copyWith(color: Colors.white.withValues(alpha: 0.8))),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 13, color: AppColors.leaf),
+          const SizedBox(width: 5),
+          Text(text, style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w600)),
+        ]),
+      );
 }

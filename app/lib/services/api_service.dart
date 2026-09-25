@@ -21,6 +21,9 @@ class ApiException implements Exception {
 class ApiService {
   static GoTrueClient get _auth => Supabase.instance.client.auth;
 
+  /// Swappable for tests (e.g. package:http/testing.dart MockClient).
+  static http.Client client = http.Client();
+
   static Future<Map<String, dynamic>> get(String path) => _send('GET', path);
 
   static Future<Map<String, dynamic>> post(String path, Map<String, dynamic> body) =>
@@ -44,8 +47,8 @@ class ApiService {
     http.Response res;
     try {
       final request = method == 'GET'
-          ? http.get(uri, headers: headers)
-          : http.post(uri, headers: headers, body: jsonEncode(body ?? {}));
+          ? client.get(uri, headers: headers)
+          : client.post(uri, headers: headers, body: jsonEncode(body ?? {}));
       // Generous timeout: a free Render instance can take ~50 s to wake up.
       res = await request.timeout(const Duration(seconds: 60));
     } on TimeoutException {

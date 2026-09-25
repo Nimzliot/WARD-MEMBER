@@ -15,6 +15,7 @@ import '../utils/errors.dart';
 import '../utils/format.dart';
 import '../theme.dart';
 import '../widgets/ai_widgets.dart';
+import '../widgets/brand.dart';
 import '../widgets/common.dart';
 
 /// Admins only (guarded in router.dart and again by the server):
@@ -63,7 +64,7 @@ class _AdminScreenState extends State<AdminScreen> {
   }
 
   Future<List<Ward>> _loadWards() async {
-    final rows = await Supabase.instance.client.from('wards').select().order('id');
+    final rows = await Supabase.instance.client.from('wards').select().order('id', ascending: true);
     return rows.map(Ward.fromMap).toList();
   }
 
@@ -161,9 +162,9 @@ class _AdminScreenState extends State<AdminScreen> {
       });
       if (!mounted) return;
       final p = res['proposal'] as Map<String, dynamic>;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Published "${p['title']}" · ${inr(p['total_cost'] as num)}'),
-      ));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Published "${p['title']}" · ${inr(p['total_cost'] as num)}')));
       // Residents' lists refresh on pull-to-refresh; refresh ours right away.
       if (_wardId == context.read<WardProvider>().wardId) context.read<WardProvider>().load();
       setState(_resetForm);
@@ -178,126 +179,144 @@ class _AdminScreenState extends State<AdminScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Admin · New proposal')),
-      body: FutureBuilder<List<Ward>>(
-        future: _wards,
-        builder: (context, snap) {
-          if (snap.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snap.hasError) {
-            return ErrorView(
-              message: friendlyError(snap.error!),
-              onRetry: () => setState(() => _wards = _loadWards()),
-            );
-          }
-          final wards = snap.data!;
-          final ward = wards.where((w) => w.id == _wardId).firstOrNull;
+      body: Column(
+        children: [
+          const BrandHeader(
+            showBack: true,
+            title: 'New proposal',
+            subtitle: 'Admin · publish to any ward',
+            bottomPadding: 16,
+          ),
+          Expanded(
+            child: FutureBuilder<List<Ward>>(
+              future: _wards,
+              builder: (context, snap) {
+                if (snap.connectionState != ConnectionState.done) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snap.hasError) {
+                  return ErrorView(
+                    message: friendlyError(snap.error!),
+                    onRetry: () => setState(() => _wards = _loadWards()),
+                  );
+                }
+                final wards = snap.data!;
+                final ward = wards.where((w) => w.id == _wardId).firstOrNull;
 
-          return Form(
-            key: _form,
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-              children: [
-                DropdownButtonFormField<int>(
-                  initialValue: _wardId,
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Ward',
-                    prefixIcon: Icon(Icons.location_city),
-                  ),
-                  items: [
-                    for (final w in wards)
-                      DropdownMenuItem(
-                        value: w.id,
-                        child: Text('${w.name}  ·  pool ${inrCompact(w.budgetPool)}',
-                            overflow: TextOverflow.ellipsis),
+                return Form(
+                  key: _form,
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+                    children: [
+                      DropdownButtonFormField<int>(
+                        initialValue: _wardId,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Ward',
+                          prefixIcon: Icon(Icons.location_city),
+                        ),
+                        items: [
+                          for (final w in wards)
+                            DropdownMenuItem(
+                              value: w.id,
+                              child: Text(
+                                '${w.name}  ·  pool ${inrCompact(w.budgetPool)}',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                        ],
+                        onChanged: (v) => setState(() => _wardId = v),
+                        validator: (v) => v == null ? 'Choose a ward' : null,
                       ),
-                  ],
-                  onChanged: (v) => setState(() => _wardId = v),
-                  validator: (v) => v == null ? 'Choose a ward' : null,
-                ),
-                const SizedBox(height: 16),
-                _DraftPanel(
-                  idea: _idea,
-                  drafting: _drafting,
-                  error: _draftError,
-                  onDraft: _draftWithAi,
-                ),
-                const SizedBox(height: 20),
-                if (_aiFilled) ...[
-                  const MessageBanner(
-                    'Drafted by Ward Assistant. Check every line and amount before publishing.',
-                    isError: false,
-                  ),
-                  const SizedBox(height: 16),
-                ],
-                TextFormField(
-                  controller: _title,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: const InputDecoration(labelText: 'Title', prefixIcon: Icon(Icons.title)),
-                  validator: (v) => (v?.trim().length ?? 0) >= 3 ? null : 'Enter a title (min 3 characters)',
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  key: ValueKey('category-$_category'),
-                  initialValue: _category,
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Category',
-                    prefixIcon: Icon(Icons.category_outlined),
-                  ),
-                  items: [
-                    for (final c in kCategories)
-                      DropdownMenuItem(
-                        value: c,
-                        child: Row(children: [
-                          Icon(categoryIcon(c), size: 18),
-                          const SizedBox(width: 8),
-                          Text(c),
-                        ]),
+                      const SizedBox(height: 16),
+                      _DraftPanel(
+                        idea: _idea,
+                        drafting: _drafting,
+                        error: _draftError,
+                        onDraft: _draftWithAi,
                       ),
-                  ],
-                  onChanged: (v) => setState(() => _category = v),
-                  validator: (v) => v == null ? 'Choose a category' : null,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _description,
-                  maxLines: 3,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: const InputDecoration(
-                    labelText: 'Description (why residents should fund it)',
-                    alignLabelWithHint: true,
+                      const SizedBox(height: 20),
+                      if (_aiFilled) ...[
+                        const MessageBanner(
+                          'Drafted by Ward Assistant. Check every line and amount before publishing.',
+                          isError: false,
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      TextFormField(
+                        controller: _title,
+                        textCapitalization: TextCapitalization.sentences,
+                        decoration: const InputDecoration(labelText: 'Title', prefixIcon: Icon(Icons.title)),
+                        validator: (v) =>
+                            (v?.trim().length ?? 0) >= 3 ? null : 'Enter a title (min 3 characters)',
+                      ),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        key: ValueKey('category-$_category'),
+                        initialValue: _category,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Category',
+                          prefixIcon: Icon(Icons.category_outlined),
+                        ),
+                        items: [
+                          for (final c in kCategories)
+                            DropdownMenuItem(
+                              value: c,
+                              child: Row(
+                                children: [
+                                  Icon(categoryIcon(c), size: 18),
+                                  const SizedBox(width: 8),
+                                  Text(c),
+                                ],
+                              ),
+                            ),
+                        ],
+                        onChanged: (v) => setState(() => _category = v),
+                        validator: (v) => v == null ? 'Choose a category' : null,
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _description,
+                        maxLines: 3,
+                        textCapitalization: TextCapitalization.sentences,
+                        decoration: const InputDecoration(
+                          labelText: 'Description (why residents should fund it)',
+                          alignLabelWithHint: true,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Text(
+                        'Budget lines',
+                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      for (var i = 0; i < _lines.length; i++) _buildLine(i),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed: _lines.length < _maxLines ? _addLine : null,
+                          icon: const Icon(Icons.add),
+                          label: const Text('Add budget line'),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _TotalCard(total: _total, pool: ward?.budgetPool),
+                      const SizedBox(height: 20),
+                      if (_error != null) ...[MessageBanner(_error!), const SizedBox(height: 16)],
+                      PrimaryButton(
+                        label: 'Publish proposal',
+                        icon: Icons.publish,
+                        loading: _saving,
+                        onPressed: _publish,
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 24),
-                Text('Budget lines',
-                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                for (var i = 0; i < _lines.length; i++) _buildLine(i),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed: _lines.length < _maxLines ? _addLine : null,
-                    icon: const Icon(Icons.add),
-                    label: const Text('Add budget line'),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                _TotalCard(total: _total, pool: ward?.budgetPool),
-                const SizedBox(height: 20),
-                if (_error != null) ...[MessageBanner(_error!), const SizedBox(height: 16)],
-                PrimaryButton(
-                  label: 'Publish proposal',
-                  icon: Icons.publish,
-                  loading: _saving,
-                  onPressed: _publish,
-                ),
-              ],
+                );
+              },
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
   }
@@ -324,10 +343,7 @@ class _AdminScreenState extends State<AdminScreen> {
             child: TextFormField(
               controller: line.amount,
               keyboardType: TextInputType.number,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(10),
-              ],
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(10)],
               decoration: const InputDecoration(labelText: 'Amount', prefixText: '₹ ', isDense: true),
               onChanged: (_) => setState(() {}), // live total
               validator: (_) => line.value > 0 ? null : 'Enter ₹',
@@ -345,12 +361,7 @@ class _AdminScreenState extends State<AdminScreen> {
 }
 
 class _DraftPanel extends StatelessWidget {
-  const _DraftPanel({
-    required this.idea,
-    required this.drafting,
-    required this.error,
-    required this.onDraft,
-  });
+  const _DraftPanel({required this.idea, required this.drafting, required this.error, required this.onDraft});
 
   final TextEditingController idea;
   final bool drafting;
@@ -370,11 +381,15 @@ class _DraftPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Describe the project in one line.',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+          const Text(
+            'Describe the project in one line.',
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+          ),
           const SizedBox(height: 2),
-          const Text('The assistant drafts the title, category, description and a realistic ₹ breakdown.',
-              style: TextStyle(fontSize: 12.5, color: AppColors.inkMuted)),
+          const Text(
+            'The assistant drafts the title, category, description and a realistic ₹ breakdown.',
+            style: TextStyle(fontSize: 12.5, color: AppColors.inkMuted),
+          ),
           const SizedBox(height: 12),
           TextField(
             controller: idea,
@@ -388,14 +403,18 @@ class _DraftPanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          Wrap(spacing: 6, runSpacing: 6, children: [
-            for (final e in _examples)
-              ActionChip(
-                label: Text(e, style: const TextStyle(fontSize: 12)),
-                visualDensity: VisualDensity.compact,
-                onPressed: drafting ? null : () => idea.text = e,
-              ),
-          ]),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final e in _examples)
+                ActionChip(
+                  label: Text(e, style: const TextStyle(fontSize: 12)),
+                  visualDensity: VisualDensity.compact,
+                  onPressed: drafting ? null : () => idea.text = e,
+                ),
+            ],
+          ),
           if (error != null) ...[
             const SizedBox(height: 10),
             Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 13)),
@@ -447,13 +466,23 @@ class _TotalCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('TOTAL COST',
-              style: theme.textTheme.labelMedium
-                  ?.copyWith(color: AppColors.leaf, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
+          Text(
+            'TOTAL COST',
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: AppColors.leaf,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.2,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(inr(total),
-              style: theme.textTheme.headlineMedium
-                  ?.copyWith(fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.5)),
+          Text(
+            inr(total),
+            style: theme.textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+              letterSpacing: -0.5,
+            ),
+          ),
           if (pool != null) ...[
             const SizedBox(height: 14),
             HeroProgress(value: math.min(1.0, share), warning: over),
