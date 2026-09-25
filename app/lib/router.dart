@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 
 import 'providers/auth_provider.dart';
@@ -22,9 +23,10 @@ const _onboardingRoutes = {'/splash', '/login', '/email-otp', '/phone-otp', '/pr
 /// profile incomplete → profile setup; otherwise the app.
 GoRouter buildRouter(AuthProvider auth) => GoRouter(
       initialLocation: '/splash',
-      refreshListenable: auth,
+      refreshListenable: Listenable.merge([auth, introDone]),
       redirect: (context, state) {
         final loc = state.matchedLocation;
+        if (!introDone.value) return loc == '/splash' ? null : '/splash'; // let the intro finish
         switch (auth.stage) {
           case AuthStage.loading:
           case AuthStage.error:
