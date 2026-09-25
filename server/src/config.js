@@ -23,6 +23,9 @@ module.exports = {
   // used when the main model is rate-limited (free tier: ~5 requests/min per model)
   geminiFallbackModels: (process.env.GEMINI_FALLBACK_MODELS || 'gemini-flash-lite-latest,gemini-3.5-flash-lite')
     .split(',').map((m) => m.trim()).filter(Boolean),
+  // Razorpay (test mode) — fundraising returns 503 PAYMENTS_NOT_CONFIGURED without these
+  razorpayKeyId: process.env.RAZORPAY_KEY_ID,
+  razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET,
   otp: {
     ttlMs: 5 * 60 * 1000, // code valid for 5 minutes
     resendMs: 60 * 1000, // resend allowed after 60 seconds

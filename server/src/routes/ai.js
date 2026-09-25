@@ -310,4 +310,65 @@ router.post('/insight', async (req, res) => {
   res.json({ ...result, total_votes: votes.length, lang });
 });
 
+// ---------- 5. Chat summary for the Ward Admin ----------
+// Chats are end-to-end encrypted, so the server can't read them. The Ward
+// Admin's phone decrypts the conversations and sends the plain text here only
+// when the admin taps "Summarize". Nothing is stored; the text goes to Gemini once.
+router.post('/chat-summary', async (req, res) => {
+  const wards = must(await supabase.from('wards').select('id, name').eq('admin_user_id', req.user.id));
+  if (!wards.length) return res.status(403).json({ error: 'Only the Ward Admin can summarise resident chats', code: 'ADMIN_ONLY' });
+
+  const threads = Array.isArray(req.body?.threads) ? req.body.threads.slice(0, 60) : [];
+  let budget = 40000; // characters sent to the model
+  const lines = [];
+  for (const t of threads) {
+    const who = String(t?.resident || 'Resident').slice(0, 60);
+    lines.push(`--- Conversation with ${who} ---`);
+    for (const m of (Array.isArray(t?.messages) ? t.messages : []).slice(-80)) {
+      const text = String(m?.text || '').replace(/\s+/g, ' ').trim().slice(0, 600);
+      if (!text) continue;
+      const line = `[${String(m?.at || '').slice(0, 16)}] ${m?.from === 'admin' ? 'Ward Admin' : who}: ${text}`;
+      budget -= line.length;
+      if (budget < 0) break;
+      lines.push(line);
+    }
+    if (budget < 0) break;
+  }
+  if (lines.length <= threads.length) return res.status(400).json({ error: 'There are no messages to summarise yet', code: 'INVALID' });
+
+  const result = await gemini.ask(
+    `You summarise conversations between residents and their Ward Admin for an Indian municipal ward (${wards[0].name}).
+- Use ONLY the messages given. Do not invent facts, names or numbers.
+- Be neutral and concise. Write in English, plain words.
+- Group similar complaints or requests together and count how many residents raised each.
+- Never include phone numbers, emails or other personal contact details in the summary.`,
+    lines.join('\n'),
+    {
+      temperature: 0.2,
+      schema: {
+        type: 'OBJECT',
+        properties: {
+          headline: { type: 'STRING', description: 'Max 12 words' },
+          overview: { type: 'STRING', description: '2-4 sentences' },
+          key_issues: {
+            type: 'ARRAY',
+            items: {
+              type: 'OBJECT',
+              properties: { issue: { type: 'STRING' }, residents: { type: 'INTEGER' } },
+              required: ['issue', 'residents'],
+            },
+          },
+          requests: { type: 'ARRAY', items: { type: 'STRING' } },
+          urgent: { type: 'ARRAY', items: { type: 'STRING' }, description: 'Safety or health issues needing quick action; empty if none' },
+          sentiment: { type: 'STRING', enum: ['positive', 'mixed', 'negative'] },
+          sentiment_note: { type: 'STRING' },
+          follow_ups: { type: 'ARRAY', items: { type: 'STRING' }, description: 'Suggested next steps for the Ward Admin' },
+        },
+        required: ['headline', 'overview', 'key_issues', 'requests', 'urgent', 'sentiment', 'sentiment_note', 'follow_ups'],
+      },
+    },
+  );
+  res.json({ ...result, ward_name: wards[0].name, conversations: threads.length, generated_at: new Date().toISOString() });
+});
+
 module.exports = router;

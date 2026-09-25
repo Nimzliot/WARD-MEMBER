@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+
+import '../services/chat_crypto.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/profile.dart';
@@ -134,6 +136,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
+    ChatCrypto.reset();
     pendingEmail = null;
     pendingPhone = null;
     await _sb.auth.signOut();

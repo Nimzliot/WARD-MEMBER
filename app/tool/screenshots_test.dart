@@ -9,7 +9,9 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:cryptography/cryptography.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -25,6 +27,12 @@ import 'package:ward_budget/providers/auth_provider.dart';
 import 'package:ward_budget/providers/live_results.dart';
 import 'package:ward_budget/providers/ward_provider.dart';
 import 'package:ward_budget/screens/admin_screen.dart';
+import 'package:ward_budget/screens/chat_screen.dart';
+import 'package:ward_budget/screens/chat_summary_screen.dart';
+import 'package:ward_budget/screens/funds_screen.dart';
+import 'package:ward_budget/screens/inbox_screen.dart';
+import 'package:ward_budget/services/chat_crypto.dart';
+import 'package:ward_budget/services/chat_service.dart';
 import 'package:ward_budget/screens/app_shell.dart';
 import 'package:ward_budget/screens/assistant_screen.dart';
 import 'package:ward_budget/screens/audit_screen.dart';
@@ -143,6 +151,77 @@ final auditJson = {
   ],
 };
 
+// ------------------------------------------------------------------ chat fixture
+
+late String adminPubKey;
+List<Map<String, dynamic>> chatRows = [];
+
+Future<void> buildChatFixture() async {
+  final resident = await X25519().newKeyPair();
+  final admin = await X25519().newKeyPair();
+  final rPriv = await resident.extractPrivateKeyBytes();
+  final rPub = base64Encode((await resident.extractPublicKey()).bytes);
+  adminPubKey = base64Encode((await admin.extractPublicKey()).bytes);
+  FlutterSecureStorage.setMockInitialValues({'chat_x25519_u1': '${base64Encode(rPriv)}.$rPub'});
+
+  final script = [
+    (true, 'Vanakkam! The streetlight near 4th Lane bus stop has been off for a week. It is very dark after 7 pm.'),
+    (false, 'Thanks for flagging this, Padma. I have logged it with TANGEDCO. Is it the pole opposite the temple?'),
+    (true, 'Yes, the one opposite the temple. Children walk home from tuition there.'),
+    (false, 'Understood. The crew is scheduled for Thursday. I will update you here once it is fixed.'),
+  ];
+  chatRows = [];
+  for (final (i, (fromResident, text)) in script.indexed) {
+    await ChatCrypto.useKeyPairForTesting(fromResident ? resident : admin);
+    final e = await ChatCrypto.encrypt(text, theirPublicKey: fromResident ? adminPubKey : rPub, threadId: 't1');
+    chatRows.add({
+      'id': 'm$i', 'sender_id': fromResident ? 'u1' : 'a1', 'ciphertext': e.ciphertext, 'nonce': e.nonce,
+      'sender_key': e.senderKey, 'recipient_key': e.recipientKey,
+      'created_at': DateTime.now().subtract(Duration(minutes: 90 - i * 20)).toUtc().toIso8601String(),
+      'read_at': DateTime.now().toUtc().toIso8601String(),
+    });
+  }
+  ChatCrypto.reset(); // the screen loads the resident key from (mock) secure storage
+}
+
+const fundsJson = {
+  'payments_enabled': true, 'test_mode': true, 'can_manage': true,
+  'campaigns': [
+    {
+      'id': 'c1', 'title': 'Benches & shade for Gandhi Maidan', 'status': 'active', 'goal': 150000, 'raised': 96500,
+      'backers': 58, 'my_total': 500,
+      'description': 'Twelve granite benches and four shade sails so elders can rest during the evening walk.',
+      'closes_at': '2026-10-26T18:29:00Z',
+      'recent': [
+        {'name': 'Padma Raman', 'amount': 500, 'paid_at': '2026-09-26T04:00:00Z'},
+        {'name': 'Anonymous', 'amount': 2000, 'paid_at': '2026-09-26T03:00:00Z'},
+        {'name': 'Karthik V.', 'amount': 250, 'paid_at': '2026-09-25T13:00:00Z'},
+      ],
+    },
+    {
+      'id': 'c2', 'title': 'Library books for the Govt. Primary School', 'status': 'active', 'goal': 60000, 'raised': 12400,
+      'backers': 17, 'my_total': 0, 'description': 'Tamil and English story books for Classes 1–5.', 'closes_at': null,
+      'recent': [],
+    },
+  ],
+};
+
+const chatSummaryJson = {
+  'headline': 'Streetlights and drainage lead resident concerns',
+  'overview': 'Residents mainly reported a dark stretch near the 4th Lane bus stop and water stagnation near the market. '
+      'Most messages are constructive and ask for timelines.',
+  'key_issues': [
+    {'issue': 'Streetlight out near 4th Lane bus stop', 'residents': 3},
+    {'issue': 'Water stagnation after rain near the market', 'residents': 2},
+  ],
+  'requests': ['Share a repair date for the streetlight', 'Clear the drain before the monsoon'],
+  'urgent': ['Dark stretch on a route children use after tuition'],
+  'sentiment': 'mixed',
+  'sentiment_note': 'Concerned but appreciative of quick replies',
+  'follow_ups': ['Confirm the Thursday TANGEDCO visit', 'Ask the sanitation team to inspect the market drain'],
+  'ward_name': 'Ward 1 – Gandhi Nagar', 'conversations': 3, 'generated_at': '2026-09-26T05:30:00Z',
+};
+
 // ------------------------------------------------------------------ fakes
 
 class FakeAuth extends AuthProvider {
@@ -196,6 +275,27 @@ final apiMock = MockClient((req) async {
   Object body = {};
   if (p.startsWith('/api/audit/')) body = auditJson;
   if (p == '/api/votes/me') body = {'vote': null};
+  if (p == '/api/funds') body = fundsJson;
+  if (p == '/api/chat/peer') {
+    body = {
+      'is_ward_admin': false, 'ward_name': 'Ward 1 – Gandhi Nagar',
+      'admin': {'id': 'a1', 'name': 'Kavitha Selvam', 'public_key': adminPubKey},
+      'thread': {'id': 't1', 'ward_id': 1, 'resident_id': 'u1', 'unread_admin': 0, 'unread_resident': 0},
+    };
+  }
+  if (p == '/api/chat/threads') {
+    body = {
+      'threads': [
+        {'id': 't1', 'ward_id': 1, 'resident_id': 'r1', 'resident_name': 'Padma Raman', 'resident_ref': 'RES-1-1004',
+          'resident_key': adminPubKey, 'last_message_at': DateTime.now().subtract(const Duration(minutes: 5)).toUtc().toIso8601String(), 'unread_admin': 2},
+        {'id': 't2', 'ward_id': 1, 'resident_id': 'r2', 'resident_name': 'Karthik Venkat', 'resident_ref': 'RES-1-1022',
+          'resident_key': adminPubKey, 'last_message_at': DateTime.now().subtract(const Duration(hours: 3)).toUtc().toIso8601String(), 'unread_admin': 0},
+        {'id': 't3', 'ward_id': 1, 'resident_id': 'r3', 'resident_name': 'Meena Sundar', 'resident_ref': 'RES-1-1031',
+          'resident_key': adminPubKey, 'last_message_at': DateTime.now().subtract(const Duration(days: 1)).toUtc().toIso8601String(), 'unread_admin': 1},
+      ],
+    };
+  }
+  if (p == '/api/ai/chat-summary') body = chatSummaryJson;
   if (p == '/api/admin/wards') {
     final open = DateTime.now().subtract(const Duration(days: 4)).toUtc().toIso8601String();
     body = {
@@ -245,6 +345,7 @@ final supabaseMock = MockClient((req) async {
     ];
   }
   if (p.endsWith('/profiles')) body = profileJson;
+  if (p.endsWith('/chat_messages')) body = chatRows;
   if (p.endsWith('/proposals')) body = [for (final x in [...myIdeas, ...proposals]) proposalJson(x)];
   return http.Response(jsonEncode(body), 200, request: req, headers: {'content-type': 'application/json; charset=utf-8'});
 });
@@ -318,6 +419,8 @@ void main() {
     ApiService.client = apiMock;
     ResultsScreen.createResults = (_) => FakeResults();
     mapTilesEnabled = false;
+    await buildChatFixture();
+    ChatService.realtimeEnabled = false;
   });
 
   setUp(() {
@@ -400,6 +503,14 @@ void main() {
         app(FailureScreen(failure: ErrorGalleryScreen.sample(kind), onRetry: retry ? () {} : null))));
   }
   testWidgets('29 error gallery', (t) => shot(t, '29_err_gallery', app(const ErrorGalleryScreen())));
+  testWidgets('30 ward fund', (t) => shot(t, '30_funds', app(const FundsScreen())));
+  testWidgets('31 chat (E2E)', (t) => shot(t, '31_chat', app(const ChatScreen())));
+  testWidgets('32 admin inbox', (t) => shot(t, '32_inbox', app(const InboxScreen())));
+  testWidgets('33 AI chat summary', (t) => shot(t, '33_chat_summary', app(ChatSummaryScreen(conversations: [
+        (resident: 'Padma Raman', messages: [
+          ChatMessage(id: '1', senderId: 'r1', text: 'Streetlight near 4th Lane is off.', createdAt: DateTime(2026, 9, 25), readAt: null, mine: false),
+        ]),
+      ]))));
   testWidgets('15 receipt', (t) => shot(t, '15_receipt', app(Scaffold(
         body: VoteReceiptSheet(
           justVoted: true,

@@ -1,0 +1,16 @@
+# Netlify: builds the Flutter web app (app/) — Netlify has no Flutter, so the
+# script installs it. Set these in Netlify → Site configuration → Environment variables:
+#   SUPABASE_URL, SUPABASE_ANON_KEY (anon key only), API_BASE_URL (your Render URL)
+[build]
+  base = "app"
+  command = "bash netlify-build.sh"
+  publish = "build/web"
+
+[build.environment]
+  FLUTTER_VERSION = "3.44.1"
+
+# Flutter web uses #/ routes, so every path can serve index.html.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

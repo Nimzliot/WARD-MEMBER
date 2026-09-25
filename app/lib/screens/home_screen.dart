@@ -76,6 +76,26 @@ class _HomeScreenState extends State<HomeScreen> {
                   if (wp.ward != null) PhaseCard(ward: wp.ward!),
                   const SizedBox(height: 12),
                   _IdeasCard(pending: wp.pendingIdeas, total: wp.myIdeas.length, closed: wp.ward?.isClosed ?? false),
+                  const SizedBox(height: 12),
+                  Row(children: [
+                    Expanded(
+                      child: _ShortcutCard(
+                        icon: Icons.volunteer_activism_rounded,
+                        title: 'Ward Fund',
+                        subtitle: 'Chip in for projects',
+                        onTap: () => context.push('/funds'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _ShortcutCard(
+                        icon: wp.isWardAdmin ? Icons.inbox_rounded : Icons.forum_rounded,
+                        title: wp.isWardAdmin ? 'Resident messages' : 'Ward Admin',
+                        subtitle: wp.isWardAdmin ? 'Your inbox · encrypted' : 'Private chat · encrypted',
+                        onTap: () => context.push(wp.isWardAdmin ? '/inbox' : '/chat'),
+                      ),
+                    ),
+                  ]),
                   const SizedBox(height: 24),
                   SectionTitle('Proposals', count: wp.proposals.length),
                   if (categories.length > 1) ...[
@@ -223,6 +243,41 @@ class _AssistantBanner extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Small square shortcut card (Ward Fund, chat).
+class _ShortcutCard extends StatelessWidget {
+  const _ShortcutCard({required this.icon, required this.title, required this.subtitle, required this.onTap});
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(color: AppColors.mint, borderRadius: BorderRadius.circular(12)),
+                child: Icon(icon, color: AppColors.forest, size: 20),
+              ),
+              const SizedBox(height: 10),
+              Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5)),
+              const SizedBox(height: 2),
+              Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: AppColors.inkMuted, fontSize: 12)),
+            ]),
+          ),
+        ),
+      );
 }
 
 /// "Have an idea?" — residents suggest projects; shows how many await review.

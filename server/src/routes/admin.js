@@ -39,6 +39,12 @@ function wardFields(body, { partial }) {
     fields.center_lat = centerLat;
     fields.center_lng = centerLng;
   }
+  // One Ward Admin per ward: { adminUserId: <uuid> } assigns, null removes.
+  const { adminUserId } = body || {};
+  if (adminUserId !== undefined) {
+    if (adminUserId !== null && !UUID_RE.test(String(adminUserId))) return { error: 'adminUserId must be a user id or null' };
+    fields.admin_user_id = adminUserId;
+  }
   const opens = parseWhen(votingOpensAt);
   const closes = parseWhen(votingClosesAt);
   if (!opens.ok || !closes.ok) return { error: 'Dates must be ISO timestamps, "now" or null' };
@@ -56,12 +62,17 @@ router.get('/wards', async (req, res) => {
     supabase.from('proposals').select('ward_id, status').then(must),
     supabase.from('votes').select('ward_id').then(must),
   ]);
+  const adminIds = wards.map((w) => w.admin_user_id).filter(Boolean);
+  const admins = adminIds.length
+    ? Object.fromEntries(must(await supabase.from('profiles').select('id, full_name').in('id', adminIds)).map((p) => [p.id, p.full_name]))
+    : {};
   res.json({
     wards: wards.map((w) => ({
       ...withPhase(w),
       approved: proposals.filter((p) => p.ward_id === w.id && p.status === 'approved').length,
       pending: proposals.filter((p) => p.ward_id === w.id && p.status === 'pending').length,
       ballots: votes.filter((v) => v.ward_id === w.id).length,
+      admin_name: w.admin_user_id ? admins[w.admin_user_id] || 'Resident' : null,
     })),
   });
 });
@@ -92,6 +103,11 @@ router.patch('/wards/:id', async (req, res) => {
   // so the window stays valid (closes > opens).
   const current = must(await supabase.from('wards').select('*').eq('id', id).maybeSingle());
   if (!current) return res.status(404).json({ error: 'Ward not found' });
+  if (fields.admin_user_id) {
+    const person = must(await supabase.from('profiles').select('ward_id, full_name').eq('id', fields.admin_user_id).maybeSingle());
+    if (!person) return res.status(404).json({ error: 'User not found' });
+    if (person.ward_id !== id) return bad(res, `${person.full_name || 'This user'} lives in another ward. Pick a resident of this ward.`);
+  }
   const opens = fields.voting_opens_at !== undefined ? fields.voting_opens_at : current.voting_opens_at;
   const closes = fields.voting_closes_at !== undefined ? fields.voting_closes_at : current.voting_closes_at;
   if (opens && closes && new Date(closes) <= new Date(opens)) {

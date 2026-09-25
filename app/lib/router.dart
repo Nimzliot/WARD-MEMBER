@@ -7,10 +7,13 @@ import 'screens/admin_screen.dart';
 import 'screens/app_shell.dart';
 import 'screens/assistant_screen.dart';
 import 'screens/audit_screen.dart';
+import 'screens/chat_screen.dart';
 import 'screens/email_otp_screen.dart';
 import 'screens/error_gallery_screen.dart';
+import 'screens/funds_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/ideas_screen.dart';
+import 'screens/inbox_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/map_screen.dart';
 import 'screens/phone_otp_screen.dart';
@@ -86,6 +89,9 @@ GoRouter buildRouter(AuthProvider auth) => GoRouter(
         GoRoute(path: '/profile', builder: (_, _) => const ProfileScreen()),
         GoRoute(path: '/admin', builder: (_, _) => const AdminScreen()),
         GoRoute(path: '/ideas', builder: (_, _) => const IdeasScreen()),
+        GoRoute(path: '/funds', builder: (_, _) => const FundsScreen()),
+        GoRoute(path: '/chat', builder: (_, _) => const ChatScreen()),
+        GoRoute(path: '/inbox', builder: (_, _) => const InboxScreen()),
         GoRoute(path: '/admin/errors', builder: (_, _) => const ErrorGalleryScreen()),
         GoRoute(path: '/admin/map', builder: (_, _) => const AdminMapScreen()),
         GoRoute(

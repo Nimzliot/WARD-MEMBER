@@ -7,6 +7,7 @@ import '../models/proposal.dart';
 import '../models/vote.dart';
 import '../models/ward.dart';
 import '../services/api_service.dart';
+import '../services/chat_service.dart';
 import '../utils/errors.dart';
 
 /// The signed-in resident's ward, its ballot (approved proposals), the
@@ -46,6 +47,8 @@ class WardProvider extends ChangeNotifier {
     _unsubscribe();
     if (key != null) {
       Future.microtask(load);
+      // Secure chat: make sure this phone has a key pair and its public key is published.
+      Future.microtask(() => ChatService.ensureKey(userId!).catchError((_) {}));
       Future.microtask(_subscribe);
     }
   }
@@ -131,6 +134,9 @@ class WardProvider extends ChangeNotifier {
   // ---------------- my ballot ----------------
 
   bool get hasVoted => myBallot != null;
+
+  /// The one Ward Admin of this ward (chat inbox, fundraisers).
+  bool get isWardAdmin => ward?.adminUserId != null && ward!.adminUserId == _userId;
   bool isOnMyBallot(String proposalId) => myBallot?.contains(proposalId) ?? false;
   List<Proposal> get myBallotProposals => [for (final id in myBallot ?? const <String>[]) ?byId(id)];
 

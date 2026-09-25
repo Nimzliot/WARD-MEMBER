@@ -28,5 +28,9 @@ services:
         value: gemini-2.5-flash
       - key: GEMINI_FALLBACK_MODELS
         value: gemini-flash-lite-latest,gemini-3.5-flash-lite
+      - key: RAZORPAY_KEY_ID
+        sync: false          # Razorpay TEST key id (rzp_test_...)
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
       - key: DEV_MODE
         value: "false"

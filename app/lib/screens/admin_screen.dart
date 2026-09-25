@@ -33,12 +33,14 @@ class _AdminWard {
       : ward = Ward.fromMap(m),
         approved = (m['approved'] as num?)?.toInt() ?? 0,
         pending = (m['pending'] as num?)?.toInt() ?? 0,
-        ballots = (m['ballots'] as num?)?.toInt() ?? 0;
+        ballots = (m['ballots'] as num?)?.toInt() ?? 0,
+        adminName = m['admin_name'] as String?;
 
   final Ward ward;
   final int approved;
   final int pending;
   final int ballots;
+  final String? adminName; // the one Ward Admin (null = none)
 }
 
 class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStateMixin {
@@ -233,6 +235,8 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
               onSelected: (v) => _wardAction(aw, v),
               itemBuilder: (_) => [
                 const PopupMenuItem(value: 'edit', child: Text('Edit name, budget & dates')),
+                PopupMenuItem(value: 'wardadmin', child: Text(aw.adminName == null ? 'Set Ward Admin…' : 'Change Ward Admin…')),
+                if (aw.adminName != null) const PopupMenuItem(value: 'removeadmin', child: Text('Remove Ward Admin')),
                 if (phase != WardPhase.open) const PopupMenuItem(value: 'open', child: Text('Open voting now (7 days)')),
                 if (phase != WardPhase.closed) const PopupMenuItem(value: 'close', child: Text('Close voting now')),
                 const PopupMenuItem(value: 'reset', child: Text('Reset ballot box…')),
@@ -245,6 +249,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
           const SizedBox(height: 10),
           _kv(Icons.play_circle_outline, 'Opens', when(w.votingOpensAt, 'Already open')),
           _kv(Icons.stop_circle_outlined, 'Closes', when(w.votingClosesAt, 'No deadline')),
+          _kv(Icons.shield_outlined, 'Admin', aw.adminName ?? 'Not assigned'),
           const SizedBox(height: 8),
           Wrap(spacing: 8, runSpacing: 6, children: [
             _pill('${aw.approved} on ballot'),
@@ -283,6 +288,13 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     switch (action) {
       case 'edit':
         await _editWard(aw.ward);
+      case 'wardadmin':
+        await _pickWardAdmin(aw);
+      case 'removeadmin':
+        if (await _confirm('Remove ${aw.adminName} as Ward Admin?',
+            'Residents of ${aw.ward.name} won\'t be able to message a Ward Admin until you assign a new one.', 'Remove')) {
+          await _run(() => ApiService.patch('/api/admin/wards/$id', {'adminUserId': null}), done: 'Ward Admin removed');
+        }
       case 'open':
         await _run(() => ApiService.patch('/api/admin/wards/$id', {
               'votingOpensAt': 'now',
@@ -308,6 +320,56 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
           await _run(() => ApiService.delete('/api/admin/wards/$id'));
         }
     }
+  }
+
+  /// One Ward Admin per ward: pick a resident who lives in this ward.
+  Future<void> _pickWardAdmin(_AdminWard aw) async {
+    List<Map<String, dynamic>> people;
+    try {
+      final r = await ApiService.get('/api/admin/users?wardId=${aw.ward.id}');
+      people = (r['users'] as List).cast<Map<String, dynamic>>().where((u) => u['full_name'] != null).toList();
+    } catch (e) {
+      if (mounted) await showFailure(context, e);
+      return;
+    }
+    if (!mounted) return;
+    final picked = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: Text('Ward Admin for ${aw.ward.name}'),
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(24, 0, 24, 8),
+            child: Text('Only one person can be Ward Admin at a time. They receive residents\' encrypted messages '
+                'and run fundraisers for this ward.',
+                style: TextStyle(fontSize: 13, color: AppColors.inkMuted)),
+          ),
+          if (people.isEmpty)
+            const Padding(padding: EdgeInsets.all(24), child: Text('No residents in this ward yet.'))
+          else
+            for (final u in people)
+              SimpleDialogOption(
+                onPressed: () => Navigator.pop(ctx, u),
+                child: Row(children: [
+                  InitialsAvatar(name: u['full_name'] as String?, size: 34),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(u['full_name'] as String, style: const TextStyle(fontWeight: FontWeight.w700)),
+                      Text(u['resident_id'] as String? ?? '', style: const TextStyle(fontSize: 12, color: AppColors.inkMuted)),
+                    ]),
+                  ),
+                  if (u['full_name'] == aw.adminName) const Icon(Icons.check_rounded, color: AppColors.forest),
+                ]),
+              ),
+        ],
+      ),
+    );
+    if (picked == null) return;
+    await _run(
+      () => ApiService.patch('/api/admin/wards/${aw.ward.id}', {'adminUserId': picked['id']}),
+      done: '${picked['full_name']} is now Ward Admin of ${aw.ward.name}',
+    );
   }
 
   Future<bool> _confirm(String title, String body, String action, {bool danger = false}) async =>

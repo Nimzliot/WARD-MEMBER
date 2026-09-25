@@ -18,12 +18,17 @@ app.use((req, res, next) => {
 // Public routes: health check (used by Render) and phone login (the user has no session yet).
 app.get('/api/health', (req, res) => res.json({ ok: true, devMode: cfg.devMode, time: new Date().toISOString() }));
 app.use('/api/auth/phone', require('./routes/phone'));
+// Razorpay redirects the payer's browser here (no app session) — signature-checked.
+const funds = require('./routes/funds');
+app.use('/api/funds', funds.callback);
 
 // Everything below needs a Supabase JWT.
 app.use('/api', requireAuth);
 app.use('/api/votes', require('./routes/votes'));
 app.use('/api/audit', require('./routes/audit'));
 app.use('/api/ideas', require('./routes/ideas'));
+app.use('/api/funds', funds.router);
+app.use('/api/chat', require('./routes/chat'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/ai', require('./routes/ai'));
 

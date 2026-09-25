@@ -9,6 +9,7 @@ class Ward {
   final DateTime? votingClosesAt; // null = no deadline
   final double? centerLat; // map centre
   final double? centerLng;
+  final String? adminUserId; // the one Ward Admin (null = none yet)
 
   const Ward({
     required this.id,
@@ -18,6 +19,7 @@ class Ward {
     this.votingClosesAt,
     this.centerLat,
     this.centerLng,
+    this.adminUserId,
   });
 
   factory Ward.fromMap(Map<String, dynamic> m) => Ward(
@@ -28,6 +30,7 @@ class Ward {
         votingClosesAt: _date(m['voting_closes_at']),
         centerLat: (m['center_lat'] as num?)?.toDouble(),
         centerLng: (m['center_lng'] as num?)?.toDouble(),
+        adminUserId: m['admin_user_id'] as String?,
       );
 
   static DateTime? _date(Object? v) => v == null ? null : DateTime.parse(v as String).toLocal();

@@ -122,6 +122,7 @@ class AppFailure {
       'ALREADY_VOTED' => FailureKind.alreadyVoted,
       'OVER_BUDGET' || 'BALLOT_CHANGED' => FailureKind.overBudget,
       'NOT_FOUND' => FailureKind.notFound,
+      'PAYMENTS_NOT_CONFIGURED' || 'PAYMENT_FAILED' || 'FUND_CLOSED' || 'KEY_CHANGED' => FailureKind.invalid,
       'RATE_LIMITED' => FailureKind.rateLimited,
       'AI_UNAVAILABLE' => FailureKind.aiUnavailable,
       'SERVER_ERROR' || 'SMS_FAILED' => FailureKind.serverError,
