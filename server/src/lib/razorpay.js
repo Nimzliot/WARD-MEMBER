@@ -51,4 +51,39 @@ function verifyCallback({ linkId, referenceId, status, paymentId, signature }) {
   return safeEqual(expected, String(signature || ''));
 }
 
-module.exports = { configured, isTestMode, createPaymentLink, fetchPaymentLink, verifyCallback };
+
+/** Order for in-app Razorpay Checkout (Android). [amount] in rupees. */
+async function createOrder({ amount, receipt, notes }) {
+  const { data } = await api.post('/orders', {
+    amount: Math.round(amount * 100),
+    currency: 'INR',
+    receipt: receipt.slice(0, 40),
+    notes,
+  }, { auth: auth() });
+  return data; // { id: 'order_...', amount, currency, status }
+}
+
+/** Payments made against an order (newest first). */
+async function orderPayments(orderId) {
+  const { data } = await api.get(`/orders/${encodeURIComponent(orderId)}/payments`, { auth: auth() });
+  return data.items || [];
+}
+
+async function capturePayment(paymentId, amountPaise) {
+  const { data } = await api.post(`/payments/${encodeURIComponent(paymentId)}/capture`,
+    { amount: amountPaise, currency: 'INR' }, { auth: auth() });
+  return data;
+}
+
+/** Checkout success signature: HMAC_SHA256(order_id + '|' + payment_id, key_secret). */
+function verifyPayment({ orderId, paymentId, signature }) {
+  const expected = crypto.createHmac('sha256', cfg.razorpayKeySecret).update(`${orderId}|${paymentId}`).digest('hex');
+  return safeEqual(expected, String(signature || ''));
+}
+
+const keyId = () => cfg.razorpayKeyId;
+
+module.exports = {
+  configured, isTestMode, keyId, createPaymentLink, fetchPaymentLink, verifyCallback,
+  createOrder, orderPayments, capturePayment, verifyPayment,
+};

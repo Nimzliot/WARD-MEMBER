@@ -55,9 +55,26 @@ async function sendReceiptOnce(c) {
   }
 }
 
+// In-app Checkout: a contribution is paid once its order has a captured payment.
+// (Authorized-but-not-captured test payments are captured here.)
+async function refreshOrder(c) {
+  const payments = await razorpay.orderPayments(c.razorpay_link_id);
+  let paid = payments.find((p) => p.status === 'captured');
+  const authorized = payments.find((p) => p.status === 'authorized');
+  if (!paid && authorized) paid = await razorpay.capturePayment(authorized.id, authorized.amount);
+  if (!paid || paid.status !== 'captured') return c;
+  const updated = must(await supabase.from('contributions')
+    .update({ status: 'paid', razorpay_payment_id: paid.id, paid_at: new Date().toISOString() })
+    .eq('id', c.id).eq('status', 'created').select('*').maybeSingle()) ?? c;
+  sendReceiptOnce(updated).catch((e) => console.error('Receipt:', e.message));
+  return updated;
+}
+
 // Marks a pending contribution paid/expired by asking Razorpay directly.
 async function refreshFromRazorpay(c) {
   if (c.status !== 'created' || !c.razorpay_link_id || !razorpay.configured()) return c;
+  // In-app Checkout (Android) stores an order id; web payments store a payment-link id.
+  if (c.razorpay_link_id.startsWith('order_')) return refreshOrder(c);
   const link = await razorpay.fetchPaymentLink(c.razorpay_link_id);
   let update = null;
   if (link.status === 'paid') {
@@ -244,6 +261,69 @@ router.post('/:id/contribute', async (req, res) => {
 });
 
 // GET /api/funds/contributions/:id → my contribution, re-checked with Razorpay while pending
+// POST /api/funds/:id/checkout { amount, anonymous } → Razorpay order for in-app Checkout (APK)
+router.post('/:id/checkout', async (req, res) => {
+  if (!razorpay.configured()) {
+    return res.status(503).json({ error: 'Payments are not set up on the server yet', code: 'PAYMENTS_NOT_CONFIGURED' });
+  }
+  if (!UUID_RE.test(req.params.id)) return bad(res, 'Invalid id');
+  const amount = Number(req.body?.amount);
+  if (!Number.isInteger(amount) || amount < MIN_AMOUNT || amount > MAX_AMOUNT) {
+    return bad(res, `Choose an amount between ₹${MIN_AMOUNT} and ₹${MAX_AMOUNT.toLocaleString('en-IN')}`);
+  }
+  const c = await campaignFor(req.params.id);
+  if (!c || c.ward_id !== req.profile.ward_id) return res.status(404).json({ error: 'Fundraiser not found', code: 'NOT_FOUND' });
+  if (c.status !== 'active' || (c.closes_at && new Date(c.closes_at) <= new Date())) {
+    return res.status(403).json({ error: 'This fundraiser has closed', code: 'FUND_CLOSED' });
+  }
+  const contribution = must(await supabase.from('contributions').insert({
+    campaign_id: c.id, user_id: req.user.id, amount, anonymous: Boolean(req.body?.anonymous),
+  }).select('*').single());
+  try {
+    const order = await razorpay.createOrder({
+      amount,
+      receipt: `mb_${contribution.id.replace(/-/g, '').slice(0, 30)}`,
+      notes: { contribution_id: contribution.id, campaign: c.title.slice(0, 200) },
+    });
+    must(await supabase.from('contributions').update({ razorpay_link_id: order.id }).eq('id', contribution.id).select('id'));
+    const email = req.user.email && !req.user.email.endsWith('@phone.wardbudget.app') ? req.user.email : '';
+    res.status(201).json({
+      contributionId: contribution.id,
+      orderId: order.id,
+      keyId: razorpay.keyId(), // public key id (safe to share); the secret never leaves the server
+      amount: order.amount, // paise
+      currency: order.currency,
+      name: 'Makkal Budget',
+      description: c.title.slice(0, 250),
+      prefill: { name: req.profile.full_name || '', email, contact: req.profile.phone ? `+91${req.profile.phone}` : '' },
+      testMode: razorpay.isTestMode(),
+    });
+  } catch (e) {
+    await supabase.from('contributions').update({ status: 'failed' }).eq('id', contribution.id);
+    console.error('Razorpay order error:', e.response?.status, JSON.stringify(e.response?.data || e.message).slice(0, 300));
+    res.status(502).json({ error: 'Razorpay could not start the payment. Please try again.', code: 'PAYMENT_FAILED' });
+  }
+});
+
+// POST /api/funds/contributions/:id/verify { orderId, paymentId, signature } → after Checkout success
+router.post('/contributions/:id/verify', async (req, res) => {
+  if (!UUID_RE.test(req.params.id)) return bad(res, 'Invalid id');
+  const c = must(await supabase.from('contributions').select('*').eq('id', req.params.id).maybeSingle());
+  if (!c || c.user_id !== req.user.id) return res.status(404).json({ error: 'Contribution not found', code: 'NOT_FOUND' });
+  const { orderId, paymentId, signature } = req.body || {};
+  if (orderId !== c.razorpay_link_id || !razorpay.verifyPayment({ orderId, paymentId, signature })) {
+    return res.status(400).json({ error: 'Payment signature did not match. Nothing was recorded.', code: 'PAYMENT_FAILED' });
+  }
+  // Signature proves Razorpay issued this payment; confirm capture with Razorpay too.
+  let fresh = c;
+  try {
+    fresh = await refreshOrder(c);
+  } catch (e) {
+    console.error('Razorpay order check failed:', e.message);
+  }
+  res.json({ contribution: fresh });
+});
+
 router.get('/contributions/:id', async (req, res) => {
   if (!UUID_RE.test(req.params.id)) return bad(res, 'Invalid id');
   const c = must(await supabase.from('contributions').select('*').eq('id', req.params.id).maybeSingle());

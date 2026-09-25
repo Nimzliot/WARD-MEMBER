@@ -105,6 +105,16 @@ class FundsService {
     );
   }
 
+  /// APK: creates a Razorpay order for the in-app Checkout (key id, amount in paise, prefill…).
+  static Future<Map<String, dynamic>> checkout(String campaignId, {required int amount, required bool anonymous}) =>
+      ApiService.post('/api/funds/$campaignId/checkout', {'amount': amount, 'anonymous': anonymous});
+
+  /// APK: after Checkout success, the server verifies the signature and confirms capture.
+  static Future<Contribution> verify(String contributionId,
+          {required String orderId, required String paymentId, required String signature}) async =>
+      Contribution.fromMap((await ApiService.post('/api/funds/contributions/$contributionId/verify',
+          {'orderId': orderId, 'paymentId': paymentId, 'signature': signature}))['contribution'] as Map<String, dynamic>);
+
   /// Server re-checks with Razorpay while the payment is pending.
   static Future<Contribution> status(String contributionId) async => Contribution.fromMap(
       (await ApiService.get('/api/funds/contributions/$contributionId'))['contribution'] as Map<String, dynamic>);

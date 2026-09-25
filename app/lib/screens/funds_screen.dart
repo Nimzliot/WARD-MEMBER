@@ -1,8 +1,10 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../providers/auth_provider.dart';
@@ -302,6 +304,8 @@ class _ContributeSheetState extends State<ContributeSheet> with WidgetsBindingOb
   Contribution? _result;
   Timer? _poll;
   int _checks = 0;
+  Razorpay? _rzp; // native Checkout (Android)
+  String? _orderId;
 
   @override
   void initState() {
@@ -313,6 +317,7 @@ class _ContributeSheetState extends State<ContributeSheet> with WidgetsBindingOb
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _poll?.cancel();
+    _rzp?.clear();
     _custom.dispose();
     super.dispose();
   }
@@ -335,6 +340,29 @@ class _ContributeSheetState extends State<ContributeSheet> with WidgetsBindingOb
       _error = null;
     });
     try {
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+        // APK: Razorpay's native Checkout opens inside the app (test mode).
+        final o = await FundsService.checkout(widget.campaign.id, amount: amount, anonymous: _anonymous);
+        _contributionId = o['contributionId'] as String;
+        _orderId = o['orderId'] as String;
+        _rzp ??= Razorpay()
+          ..on(Razorpay.EVENT_PAYMENT_SUCCESS, _onRazorpaySuccess)
+          ..on(Razorpay.EVENT_PAYMENT_ERROR, _onRazorpayError)
+          ..on(Razorpay.EVENT_EXTERNAL_WALLET, (_) {});
+        _rzp!.open({
+          'key': o['keyId'],
+          'amount': o['amount'],
+          'currency': o['currency'],
+          'order_id': o['orderId'],
+          'name': o['name'],
+          'description': o['description'],
+          'prefill': o['prefill'],
+          'theme': {'color': '#0B5D3B'},
+          'retry': {'enabled': true, 'max_count': 2},
+        });
+        return;
+      }
+      // Web: Razorpay payment page in a new tab, then we poll for confirmation.
       final r = await FundsService.contribute(widget.campaign.id, amount: amount, anonymous: _anonymous);
       _contributionId = r.contributionId;
       _paymentUrl = r.url;
@@ -349,6 +377,47 @@ class _ContributeSheetState extends State<ContributeSheet> with WidgetsBindingOb
     } finally {
       if (mounted) setState(() => _starting = false);
     }
+  }
+
+  /// Checkout says paid → the server verifies Razorpay's signature and confirms capture.
+  Future<void> _onRazorpaySuccess(PaymentSuccessResponse r) async {
+    if (!mounted) return;
+    setState(() => _stage = _Stage.waiting);
+    try {
+      final c = await FundsService.verify(
+        _contributionId!,
+        orderId: r.orderId ?? _orderId!,
+        paymentId: r.paymentId ?? '',
+        signature: r.signature ?? '',
+      );
+      if (!mounted) return;
+      if (c.isPaid) {
+        HapticFeedback.mediumImpact();
+        setState(() {
+          _result = c;
+          _stage = _Stage.paid;
+        });
+      } else {
+        // Capture still settling on Razorpay's side: keep checking.
+        _poll = Timer.periodic(const Duration(seconds: 3), (_) => _check());
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _stage = _Stage.choose;
+        _error = friendlyError(e);
+      });
+    }
+  }
+
+  void _onRazorpayError(PaymentFailureResponse r) {
+    if (!mounted) return;
+    setState(() {
+      _stage = _Stage.choose;
+      _error = r.code == Razorpay.PAYMENT_CANCELLED
+          ? 'Payment cancelled. Nothing was charged.'
+          : 'Payment failed: ${r.message ?? 'please try again'}. Nothing was charged.';
+    });
   }
 
   Future<void> _open() async {
