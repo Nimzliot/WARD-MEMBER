@@ -20,6 +20,9 @@ module.exports = {
   devMode,
   geminiKey: process.env.GEMINI_API_KEY, // optional — AI features return 503 without it
   geminiModel: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+  // used when the main model is rate-limited (free tier: ~5 requests/min per model)
+  geminiFallbackModels: (process.env.GEMINI_FALLBACK_MODELS || 'gemini-flash-lite-latest,gemini-3.5-flash-lite')
+    .split(',').map((m) => m.trim()).filter(Boolean),
   otp: {
     ttlMs: 5 * 60 * 1000, // code valid for 5 minutes
     resendMs: 60 * 1000, // resend allowed after 60 seconds
