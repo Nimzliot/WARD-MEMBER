@@ -19,30 +19,30 @@ LatLng? proposalPoint(Proposal p) => p.hasLocation ? LatLng(p.lat!, p.lng!) : nu
 /// Off in offline screenshot tests (no network there).
 bool mapTilesEnabled = true;
 
-/// Soft green tint so the basemap matches the app (keeps street labels readable).
+/// Calm green look for the busy OpenStreetMap style: half desaturated, then a
+/// light green tint, so pins stand out and street labels stay readable.
 const _greenTint = ColorFilter.matrix(<double>[
-  0.86, 0.06, 0.02, 0, 4, //
-  0.04, 0.94, 0.04, 0, 10,
-  0.02, 0.06, 0.84, 0, 2,
+  0.56, 0.33, 0.03, 0, 6, //
+  0.10, 0.84, 0.04, 0, 12,
+  0.10, 0.33, 0.49, 0, 8,
   0, 0, 0, 1, 0,
 ]);
 
-/// Basemap: CARTO Voyager (OpenStreetMap data, clean labels, no API key),
-/// tinted green. Attribution to OSM + CARTO is shown by [osmAttribution].
+/// Basemap: OpenStreetMap standard tiles (free, no API key; the tile policy
+/// requires a real User-Agent and the attribution shown by [osmAttribution]).
+/// Note: CARTO basemaps now need an API key, so they are not used.
 List<Widget> osmLayers() => [
       if (mapTilesEnabled)
         TileLayer(
-          urlTemplate: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-          subdomains: const ['a', 'b', 'c', 'd'],
-          retinaMode: true,
+          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'app.makkalbudget',
-          maxZoom: 20,
+          maxZoom: 19,
           tileBuilder: (context, tile, _) => ColorFiltered(colorFilter: _greenTint, child: tile),
         ),
     ];
 
 const osmAttribution = SimpleAttributionWidget(
-  source: Text('OpenStreetMap contributors · CARTO'),
+  source: Text('OpenStreetMap contributors'),
   backgroundColor: Color(0xCCFFFFFF),
 );
 
