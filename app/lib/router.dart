@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'providers/auth_provider.dart';
 import 'screens/admin_screen.dart';
 import 'screens/app_shell.dart';
+import 'screens/assistant_screen.dart';
 import 'screens/audit_screen.dart';
 import 'screens/email_otp_screen.dart';
 import 'screens/home_screen.dart';
@@ -54,6 +55,9 @@ GoRouter buildRouter(AuthProvider auth) => GoRouter(
             ]),
             StatefulShellBranch(routes: [
               GoRoute(path: '/results', builder: (_, _) => const ResultsScreen()),
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(path: '/assistant', builder: (_, _) => const AssistantScreen()),
             ]),
             StatefulShellBranch(routes: [
               GoRoute(path: '/audit', builder: (_, _) => const AuditScreen()),

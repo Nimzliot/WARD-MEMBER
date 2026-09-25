@@ -450,28 +450,73 @@ Future<void> showAskSheet(BuildContext context, Proposal proposal) => showModalB
       builder: (_) => AskSheet(proposal: proposal),
     );
 
-class AskSheet extends StatefulWidget {
+/// Bottom sheet: chat about one proposal.
+class AskSheet extends StatelessWidget {
   const AskSheet({super.key, required this.proposal});
 
   final Proposal proposal;
 
   @override
-  State<AskSheet> createState() => _AskSheetState();
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: SizedBox(
+        height: MediaQuery.sizeOf(context).height * 0.8,
+        child: Column(children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 12, 4),
+            child: Row(children: [
+              const AiBadge(label: 'Ask Ward Assistant'),
+              const Spacer(),
+              IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
+            ]),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Text('About: ${proposal.title}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12.5, color: AppColors.inkMuted)),
+          ),
+          const Divider(height: 20),
+          Expanded(
+            child: AiChat(
+              proposalId: proposal.id,
+              greeting: 'Hi! Ask me anything about this proposal: its cost, who it helps, '
+                  'or how it compares. You can ask in English, தமிழ் or हिंदी.',
+              suggestions: const [
+                'Who benefits the most?',
+                'Why does it cost this much?',
+                'What if this is not funded?',
+                'இதனால் யாருக்கு பயன்?',
+                'इसमें सबसे बड़ा खर्च क्या है?',
+              ],
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
 }
 
-class _AskSheetState extends State<AskSheet> {
+/// Grounded chat with the Ward Assistant. With [proposalId] it answers about that
+/// proposal; without it, about the resident's whole ward.
+class AiChat extends StatefulWidget {
+  const AiChat({super.key, this.proposalId, required this.greeting, required this.suggestions});
+
+  final String? proposalId;
+  final String greeting;
+  final List<String> suggestions;
+
+  @override
+  State<AiChat> createState() => _AiChatState();
+}
+
+class _AiChatState extends State<AiChat> {
   final _input = TextEditingController();
   final _scroll = ScrollController();
   final List<ChatTurn> _turns = [];
   bool _thinking = false;
-
-  static const _suggestions = [
-    'Who benefits the most?',
-    'Why does it cost this much?',
-    'What if this is not funded?',
-    'இதனால் யாருக்கு பயன்?',
-    'इसमें सबसे बड़ा खर्च क्या है?',
-  ];
 
   @override
   void dispose() {
@@ -491,7 +536,7 @@ class _AskSheetState extends State<AskSheet> {
     });
     _scrollDown();
     try {
-      final answer = await AiService.ask(widget.proposal.id, q, history);
+      final answer = await AiService.ask(q, history, proposalId: widget.proposalId);
       if (mounted) setState(() => _turns.add(ChatTurn(false, answer)));
     } catch (e) {
       if (mounted) setState(() => _turns.add(ChatTurn(false, '⚠️ ${friendlyError(e)}')));
@@ -510,118 +555,86 @@ class _AskSheetState extends State<AskSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-      child: SizedBox(
-        height: MediaQuery.sizeOf(context).height * 0.78,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 12, 8),
-              child: Row(children: [
-                const AiBadge(label: 'Ask Ward Assistant'),
-                const Spacer(),
-                IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
-              ]),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Text('About: ${widget.proposal.title}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(color: AppColors.inkMuted)),
-            ),
-            const Divider(height: 20),
-            Expanded(
-              child: ListView(
-                controller: _scroll,
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-                children: [
-                  _Bubble(
-                    fromUser: false,
-                    text: 'Hi! Ask me anything about this proposal — its cost, who it helps, '
-                        'or how it compares. You can ask in English, தமிழ் or हिंदी.',
-                    animate: false,
-                  ),
-                  if (_turns.isEmpty) ...[
-                    const SizedBox(height: 8),
-                    Wrap(spacing: 8, runSpacing: 8, children: [
-                      for (final s in _suggestions)
-                        ActionChip(
-                          avatar: const Icon(Icons.auto_awesome, size: 14, color: AppColors.emerald),
-                          label: Text(s, style: const TextStyle(fontSize: 12.5)),
-                          onPressed: () => _send(s),
-                        ),
-                    ]),
-                  ],
-                  for (final (i, t) in _turns.indexed)
-                    _Bubble(fromUser: t.fromUser, text: t.text, animate: !t.fromUser && i == _turns.length - 1),
-                  if (_thinking)
-                    const Align(
-                      alignment: Alignment.centerLeft,
-                      child: Padding(
-                        padding: EdgeInsets.only(top: 8, left: 36),
-                        child: TypingDots(),
-                      ),
+    return Column(
+      children: [
+        Expanded(
+          child: ListView(
+            controller: _scroll,
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+            children: [
+              _Bubble(fromUser: false, text: widget.greeting, animate: false),
+              if (_turns.isEmpty) ...[
+                const SizedBox(height: 10),
+                Wrap(spacing: 8, runSpacing: 8, children: [
+                  for (final s in widget.suggestions)
+                    ActionChip(
+                      avatar: const Icon(Icons.auto_awesome, size: 14, color: AppColors.emerald),
+                      label: Text(s, style: const TextStyle(fontSize: 12.5)),
+                      onPressed: () => _send(s),
                     ),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 10, 12, 12),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                border: Border(top: BorderSide(color: AppColors.mintLine)),
-              ),
-              child: SafeArea(
-                top: false,
-                child: Row(children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _input,
-                      minLines: 1,
-                      maxLines: 4,
-                      textInputAction: TextInputAction.send,
-                      onSubmitted: _send,
-                      decoration: InputDecoration(
-                        hintText: 'Ask about this proposal…',
-                        fillColor: AppColors.canvas,
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
-                        enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
-                        focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(24),
-                            borderSide: const BorderSide(color: AppColors.forest, width: 1.5)),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  ListenableBuilder(
-                    listenable: _input,
-                    builder: (context, _) {
-                      final enabled = _input.text.trim().isNotEmpty && !_thinking;
-                      return AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        decoration: BoxDecoration(
-                          gradient: enabled ? AppTheme.aiGradient : null,
-                          color: enabled ? null : AppColors.mintLine,
-                          shape: BoxShape.circle,
-                        ),
-                        child: IconButton(
-                          onPressed: enabled ? () => _send(_input.text) : null,
-                          icon: const Icon(Icons.arrow_upward_rounded, color: Colors.white),
-                        ),
-                      );
-                    },
-                  ),
                 ]),
-              ),
-            ),
-          ],
+              ],
+              for (final (i, t) in _turns.indexed)
+                _Bubble(fromUser: t.fromUser, text: t.text, animate: !t.fromUser && i == _turns.length - 1),
+              if (_thinking)
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Padding(padding: EdgeInsets.only(top: 8, left: 36), child: TypingDots()),
+                ),
+            ],
+          ),
         ),
-      ),
+        Container(
+          padding: const EdgeInsets.fromLTRB(16, 10, 12, 12),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            border: Border(top: BorderSide(color: AppColors.mintLine)),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Row(children: [
+              Expanded(
+                child: TextField(
+                  controller: _input,
+                  minLines: 1,
+                  maxLines: 4,
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: _send,
+                  decoration: InputDecoration(
+                    hintText: 'Ask in English, தமிழ், हिंदी…',
+                    fillColor: AppColors.canvas,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
+                    enabledBorder:
+                        OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
+                    focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(24),
+                        borderSide: const BorderSide(color: AppColors.forest, width: 1.5)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              ListenableBuilder(
+                listenable: _input,
+                builder: (context, _) {
+                  final enabled = _input.text.trim().isNotEmpty && !_thinking;
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    decoration: BoxDecoration(
+                      gradient: enabled ? AppTheme.aiGradient : null,
+                      color: enabled ? null : AppColors.mintLine,
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      onPressed: enabled ? () => _send(_input.text) : null,
+                      icon: const Icon(Icons.arrow_upward_rounded, color: Colors.white),
+                    ),
+                  );
+                },
+              ),
+            ]),
+          ),
+        ),
+      ],
     );
   }
 }

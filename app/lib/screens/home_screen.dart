@@ -75,6 +75,8 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 12),
           if (wp.ward != null) _BudgetSummaryCard(ward: wp.ward!, requested: wp.totalRequested, count: wp.proposals.length),
           const SizedBox(height: 12),
+          const _AssistantBanner(),
+          const SizedBox(height: 12),
           _VoteStatusCard(votedFor: wp.myVotedProposal),
           const SizedBox(height: 16),
           if (categories.length > 1)
@@ -171,6 +173,52 @@ class _BudgetSummaryCard extends StatelessWidget {
       );
 }
 
+/// Entry point to the Ward Assistant (AI) tab.
+class _AssistantBanner extends StatelessWidget {
+  const _AssistantBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(1.6),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(colors: [AppColors.leaf, AppColors.emerald, AppColors.forest]),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18.4),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18.4),
+          onTap: () => context.go('/assistant'),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: const BoxDecoration(gradient: AppTheme.aiGradient, shape: BoxShape.circle),
+                child: const Icon(Icons.auto_awesome, color: Colors.white),
+              ),
+              const SizedBox(width: 14),
+              const Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Ask Ward Assistant',
+                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: AppColors.forestDark)),
+                  SizedBox(height: 2),
+                  Text('AI answers about your ward budget · English, தமிழ், हिंदी',
+                      style: TextStyle(fontSize: 12.5, color: AppColors.inkMuted)),
+                ]),
+              ),
+              const Icon(Icons.arrow_forward_rounded, color: AppColors.forest),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _VoteStatusCard extends StatelessWidget {
   const _VoteStatusCard({required this.votedFor});
 
@@ -262,8 +310,20 @@ class _ProposalCard extends StatelessWidget {
                 Text(inr(proposal.totalCost),
                     style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
                 const Spacer(),
-                Text('$share% of pool · ${proposal.items.length} lines',
+                Text('$share% of pool',
                     style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+                const SizedBox(width: 8),
+                // hint that the AI explanation is one tap away
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(color: AppColors.mint, borderRadius: BorderRadius.circular(20)),
+                  child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.auto_awesome, size: 12, color: AppColors.emerald),
+                    SizedBox(width: 4),
+                    Text('AI explain',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.forest)),
+                  ]),
+                ),
               ]),
             ],
           ),

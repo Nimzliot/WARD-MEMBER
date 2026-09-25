@@ -26,6 +26,11 @@ class AppShell extends StatelessWidget {
             label: 'Results',
           ),
           NavigationDestination(
+            icon: Icon(Icons.auto_awesome_outlined),
+            selectedIcon: Icon(Icons.auto_awesome),
+            label: 'Assistant',
+          ),
+          NavigationDestination(
             icon: Icon(Icons.verified_user_outlined),
             selectedIcon: Icon(Icons.verified_user),
             label: 'Audit',

@@ -76,9 +76,10 @@ class AiService {
       ProposalExplanation.fromMap(
           await ApiService.post('/api/ai/explain', {'proposalId': proposalId, 'lang': lang.code}));
 
-  static Future<String> ask(String proposalId, String question, List<ChatTurn> history) async {
+  /// About one proposal ([proposalId]) or, without it, the resident's whole ward.
+  static Future<String> ask(String question, List<ChatTurn> history, {String? proposalId}) async {
     final res = await ApiService.post('/api/ai/ask', {
-      'proposalId': proposalId,
+      'proposalId': ?proposalId,
       'question': question,
       'history': [
         for (final t in history) {'role': t.fromUser ? 'user' : 'assistant', 'text': t.text},

@@ -127,18 +127,53 @@ router.post('/explain', async (req, res) => {
   res.json({ ...result, lang });
 });
 
-// ---------- 2. Ask a question about a proposal (grounded chat) ----------
+// Whole-ward context for the Assistant tab: every proposal, its lines and live votes.
+async function describeWard(wardId) {
+  const [ward, proposals, votes] = await Promise.all([
+    supabase.from('wards').select('name, budget_pool').eq('id', wardId).maybeSingle().then(must),
+    supabase.from('proposals').select('id, title, category, description, total_cost, budget_items(label, amount)')
+      .eq('ward_id', wardId).order('created_at').then(must),
+    supabase.from('votes').select('proposal_id').eq('ward_id', wardId).then(must),
+  ]);
+  if (!ward) return null;
+  const counts = {};
+  votes.forEach((v) => { counts[v.proposal_id] = (counts[v.proposal_id] || 0) + 1; });
+  const requested = proposals.reduce((s, p) => s + p.total_cost, 0);
+  return [
+    `WARD: ${ward.name}. Total ward budget pool: ₹${ward.budget_pool} (${lakh(ward.budget_pool)}).`,
+    `${proposals.length} proposals ask for ${lakh(requested)} in total. Votes cast so far: ${votes.length}.`,
+    'Funding rule: most-voted proposals are funded first, while they still fit in the remaining pool.',
+    'Each resident gets ONE vote in their ward. Votes are anonymous and hash-chained (tamper-evident audit log).',
+    '',
+    ...proposals.flatMap((p, i) => [
+      `PROPOSAL ${i + 1}: "${p.title}" (${p.category}) — ${lakh(p.total_cost)}, ${counts[p.id] || 0} votes so far.`,
+      `  ${p.description || ''}`,
+      ...[...p.budget_items].sort((a, b) => b.amount - a.amount).map((b) => `  - ${b.label}: ₹${b.amount}`),
+    ]),
+  ].join('\n');
+}
+
+// ---------- 2. Ask a question (about one proposal, or the whole ward) ----------
 
 router.post('/ask', async (req, res) => {
   const { proposalId } = req.body || {};
   const question = String(req.body?.question || '').trim().slice(0, 500);
   const history = Array.isArray(req.body?.history) ? req.body.history.slice(-6) : [];
-  if (!UUID_RE.test(String(proposalId))) return res.status(400).json({ error: 'Invalid proposalId' });
   if (question.length < 2) return res.status(400).json({ error: 'Type a question' });
 
-  const ctx = await loadProposalContext(proposalId);
-  if (!ctx) return res.status(404).json({ error: 'Proposal not found' });
-  if (!canSeeWard(req.profile, ctx.proposal.ward_id)) return res.status(403).json({ error: 'Not your ward' });
+  let data;
+  if (proposalId) {
+    if (!UUID_RE.test(String(proposalId))) return res.status(400).json({ error: 'Invalid proposalId' });
+    const ctx = await loadProposalContext(proposalId);
+    if (!ctx) return res.status(404).json({ error: 'Proposal not found' });
+    if (!canSeeWard(req.profile, ctx.proposal.ward_id)) return res.status(403).json({ error: 'Not your ward' });
+    data = describeProposal(ctx);
+  } else {
+    const wardId = Number(req.body?.wardId) || req.profile.ward_id;
+    if (!canSeeWard(req.profile, wardId)) return res.status(403).json({ error: 'Not your ward' });
+    data = await describeWard(wardId);
+    if (!data) return res.status(404).json({ error: 'Ward not found' });
+  }
 
   const contents = [
     ...history
@@ -150,10 +185,10 @@ router.post('/ask', async (req, res) => {
   const answer = await gemini.generate({
     system: `${BASE_RULES}
 - Answer in the SAME language the resident writes in (English, Tamil or Hindi).
-- Keep answers under 100 words. Use plain text, no markdown headings; short bullet lines with "•" are fine.
+- Keep answers under 100 words. Use plain text, no markdown headings or **bold**; short bullet lines with "•" are fine.
 
 DATA YOU MAY USE:
-${describeProposal(ctx)}`,
+${data}`,
     contents,
     temperature: 0.3,
     maxTokens: 512,
