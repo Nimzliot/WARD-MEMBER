@@ -20,3 +20,7 @@ Thumbs.db
 # Screenshot harness output (regenerate: flutter test tool/screenshots_test.dart --update-goldens)
 app/tool/shots/
 app/tool/sheets/
+
+# background supervisor
+run/logs/
+run/supervisor.pid

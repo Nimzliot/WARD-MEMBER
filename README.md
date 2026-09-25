@@ -143,6 +143,9 @@ The same Flutter app runs in the browser. `.github/workflows/web.yml` builds it 
 Local build: `cd app && flutter build web --release --dart-define-from-file=config.json --base-href /WARD-MEMBER/` → `app/build/web`.
 The API already allows cross-origin requests (`cors()`), including through ngrok.
 
+## Run the backend for local testing (Windows)
+Double-click **`start-servers.bat`**. A background supervisor (`run/supervisor.js`, no windows) starts the API and the ngrok tunnel on the fixed URL the APK uses, restarts either if it stops, and health-checks the API every 30 s. Logs: `run/logs/`. Stop everything with **`stop-servers.bat`**. Keep the laptop awake while testing.
+
 ## Deploy the API to Render
 1. Push this repo to GitHub.
 2. Go to https://dashboard.render.com → **New → Blueprint**, then select the repo. Render reads `render.yaml`.
