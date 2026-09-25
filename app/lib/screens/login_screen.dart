@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../utils/errors.dart';
 import '../theme.dart';
+import '../widgets/civic.dart';
 import '../widgets/common.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -177,6 +178,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
             ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(24, 0, 24, 24),
+              child: PrototypeNotice(),
+            ),
           ],
         ),
       ),
@@ -198,32 +203,58 @@ class _LoginHeader extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          Positioned(
-            right: -50,
-            top: -40,
-            child: Container(
-              width: 200,
-              height: 200,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white.withValues(alpha: 0.07), width: 26),
-              ),
+          Positioned.fill(
+            child: ShaderMask(
+              shaderCallback: (r) =>
+                  const LinearGradient(colors: [Colors.transparent, Colors.white], stops: [0.2, 1]).createShader(r),
+              blendMode: BlendMode.dstIn,
+              child: CustomPaint(painter: KolamPatternPainter()),
             ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            top: MediaQuery.paddingOf(context).top,
+            child: const TricolourStrip(),
           ),
           SafeArea(
             bottom: false,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 28, 24, 64),
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 64),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-                    child: const Icon(Icons.how_to_vote_rounded, color: AppColors.forest, size: 30),
-                  ),
-                  const SizedBox(height: 20),
+                  Row(children: [
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+                      child: const Icon(Icons.how_to_vote_rounded, color: AppColors.forest, size: 30),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        const Text('Ward Budget',
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 17)),
+                        const SizedBox(height: 3),
+                        Row(children: [
+                          const KolamMark(size: 14, color: AppColors.leaf),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(kAuthorityLine,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.72),
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 1.1)),
+                          ),
+                        ]),
+                      ]),
+                    ),
+                  ]),
+                  const SizedBox(height: 22),
                   Text(
                     'Welcome, resident',
                     style: theme.textTheme.headlineMedium?.copyWith(

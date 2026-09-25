@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme.dart';
+import 'civic.dart';
 
 /// Full-width filled button with a built-in loading spinner.
 class PrimaryButton extends StatelessWidget {
@@ -69,7 +70,7 @@ class MessageBanner extends StatelessWidget {
   }
 }
 
-/// Deep-green gradient card with soft decorative rings — used for the key
+/// Deep-green gradient card with a soft kolam texture — used for the key
 /// number on a screen (budget pool, turnout, proposal total).
 class HeroCard extends StatelessWidget {
   const HeroCard({super.key, required this.child, this.padding = const EdgeInsets.all(20)});
@@ -79,14 +80,6 @@ class HeroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget ring(double size) => Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 18),
-          ),
-        );
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
@@ -98,8 +91,14 @@ class HeroCard extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          Positioned(right: -40, top: -50, child: ring(170)),
-          Positioned(right: 40, bottom: -70, child: ring(120)),
+          Positioned.fill(
+            child: ShaderMask(
+              shaderCallback: (r) => const LinearGradient(colors: [Colors.transparent, Colors.white], stops: [0.3, 1])
+                  .createShader(r),
+              blendMode: BlendMode.dstIn,
+              child: CustomPaint(painter: KolamPatternPainter(opacity: 0.08, cell: 24)),
+            ),
+          ),
           Padding(
             padding: padding,
             child: DefaultTextStyle.merge(style: const TextStyle(color: Colors.white), child: child),

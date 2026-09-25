@@ -6,6 +6,7 @@ import '../providers/auth_provider.dart';
 import '../utils/format.dart';
 import '../theme.dart';
 import '../widgets/brand.dart';
+import '../widgets/civic.dart';
 import '../widgets/common.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -145,6 +146,8 @@ class ProfileScreen extends StatelessWidget {
                     foregroundColor: theme.colorScheme.error,
                   ),
                 ),
+                const SizedBox(height: 20),
+                const PrototypeNotice(),
               ]),
             ),
           ],

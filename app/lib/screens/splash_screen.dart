@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
 import '../theme.dart';
+import '../widgets/civic.dart';
 
 /// Becomes true when the intro animation has finished. The router keeps the
 /// app on /splash until then, so the intro always plays in full.
@@ -58,6 +59,25 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
         decoration: const BoxDecoration(gradient: AppTheme.heroGradient),
         child: Stack(
           children: [
+            // Kolam texture over the whole screen, fading in with the logo
+            Positioned.fill(
+              child: FadeTransition(
+                opacity: _tileFade,
+                child: CustomPaint(painter: KolamPatternPainter(opacity: 0.045, cell: 30)),
+              ),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              top: MediaQuery.paddingOf(context).top,
+              child: const TricolourStrip(),
+            ),
+            Positioned(
+              left: 24,
+              right: 24,
+              bottom: MediaQuery.paddingOf(context).bottom + 18,
+              child: FadeTransition(opacity: _footer, child: const PrototypeNotice(onDark: true)),
+            ),
             // Soft ripples spreading from behind the logo, forever.
             Positioned.fill(
               child: AnimatedBuilder(
@@ -83,7 +103,23 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                           height: 18,
                           child: CustomPaint(painter: _ChainPainter(_chain.value)),
                         ),
-                        const SizedBox(height: 22),
+                        const SizedBox(height: 20),
+                        // authority line: the kolam mark draws itself, then the text fades in
+                        Row(mainAxisSize: MainAxisSize.min, children: [
+                          KolamMark(size: 20, color: AppColors.leaf, progress: _chain.value),
+                          const SizedBox(width: 8),
+                          Opacity(
+                            opacity: _title.value,
+                            child: Text(kAuthorityLine,
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.75),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1.4,
+                                )),
+                          ),
+                        ]),
+                        const SizedBox(height: 10),
                         _StaggeredTitle(
                           text: 'Ward Budget',
                           progress: _title.value,

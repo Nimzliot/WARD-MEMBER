@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../theme.dart';
+import 'civic.dart';
 
 /// The app's signature header: a deep-green gradient block with rounded bottom
 /// corners and soft rings. Every main screen starts with one, so the whole app
@@ -40,15 +41,45 @@ class BrandHeader extends StatelessWidget {
         ),
         child: Stack(
           children: [
-            Positioned(right: -60, top: -70, child: _ring(230, 28)),
-            Positioned(left: -50, bottom: -90, child: _ring(170, 20)),
+            // Kolam texture, fading out towards the left so text stays crisp
+            Positioned.fill(
+              child: ShaderMask(
+                shaderCallback: (r) => const LinearGradient(
+                  colors: [Colors.transparent, Colors.white],
+                  stops: [0.25, 1],
+                ).createShader(r),
+                blendMode: BlendMode.dstIn,
+                child: CustomPaint(painter: KolamPatternPainter()),
+              ),
+            ),
             SafeArea(
               bottom: false,
               child: Padding(
-                padding: EdgeInsets.fromLTRB(showBack ? 8 : 20, 8, 12, bottomPadding),
+                padding: EdgeInsets.fromLTRB(showBack ? 8 : 20, 4, 12, bottomPadding),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Portal-style authority line
+                    Padding(
+                      padding: EdgeInsets.only(left: showBack ? 12 : 0, top: 6),
+                      child: Row(children: [
+                        const KolamMark(size: 16, color: AppColors.leaf),
+                        const SizedBox(width: 7),
+                        Flexible(
+                          child: Text(
+                            kAuthorityLine,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.72),
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ),
+                      ]),
+                    ),
                     SizedBox(
                       height: 52,
                       child: Row(children: [
@@ -90,20 +121,13 @@ class BrandHeader extends StatelessWidget {
                 ),
               ),
             ),
+            // Tricolour strip along the very top edge (under the status bar)
+            Positioned(left: 0, right: 0, top: MediaQuery.paddingOf(context).top, child: const TricolourStrip(height: 3)),
           ],
         ),
       ),
     );
   }
-
-  static Widget _ring(double size, double width) => Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(color: Colors.white.withValues(alpha: 0.07), width: width),
-        ),
-      );
 }
 
 /// Header for the sign-up steps: segmented progress, big title, subtitle.
