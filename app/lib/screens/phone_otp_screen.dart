@@ -122,7 +122,7 @@ class _PhoneOtpScreenState extends State<PhoneOtpScreen> {
           children: [
             OnboardingHeader(
               step: 1,
-              total: 3,
+              total: 2,
               icon: Icons.sms_outlined,
               title: 'Check your SMS',
               subtitle: TextSpan(

@@ -9,6 +9,7 @@ import '../theme.dart';
 import '../widgets/brand.dart';
 import '../widgets/civic.dart';
 import '../widgets/common.dart';
+import 'contact_verify_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -71,25 +72,36 @@ class ProfileScreen extends StatelessWidget {
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 const SectionTitle('Verification'),
                 Card(
-                  // Shows whichever method(s) this account verified with.
+                  // Sign-in needs only one; the other can be verified here any time.
                   child: Column(children: [
-                    if (p.hasRealEmail)
-                      _InfoRow(
-                        icon: Icons.email_outlined,
-                        label: 'Email',
-                        value: p.email!,
-                        trailing: VerifiedBadge(verified: auth.user?.emailConfirmedAt != null),
-                      ),
-                    if (p.hasRealEmail && p.phoneVerified) const Divider(height: 1, indent: 64),
-                    if (p.phoneVerified)
-                      _InfoRow(
-                        icon: Icons.phone_android,
-                        label: 'Mobile',
-                        value: formatPhone(p.phone),
-                        trailing: const VerifiedBadge(verified: true),
-                      ),
+                    _InfoRow(
+                      icon: Icons.email_outlined,
+                      label: 'Email',
+                      value: auth.hasVerifiedEmail ? auth.user!.email! : 'Not verified yet',
+                      trailing: auth.hasVerifiedEmail
+                          ? const VerifiedBadge(verified: true)
+                          : _VerifyButton(email: true),
+                    ),
+                    const Divider(height: 1, indent: 64),
+                    _InfoRow(
+                      icon: Icons.phone_android,
+                      label: 'Mobile',
+                      value: auth.hasVerifiedPhone ? formatPhone(p.phone) : 'Not verified yet',
+                      trailing: auth.hasVerifiedPhone
+                          ? const VerifiedBadge(verified: true)
+                          : _VerifyButton(email: false),
+                    ),
                   ]),
                 ),
+                if (!auth.hasVerifiedEmail || !auth.hasVerifiedPhone) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    !auth.hasVerifiedEmail
+                        ? 'Verify your email to sign in with it and to get payment receipts by email.'
+                        : 'Verify your mobile to also sign in with an SMS code.',
+                    style: const TextStyle(fontSize: 12.5, color: AppColors.inkMuted),
+                  ),
+                ],
                 const SizedBox(height: 20),
                 const SectionTitle('Residency'),
                 Card(
@@ -218,5 +230,21 @@ class _InfoRow extends StatelessWidget {
           ),
           ?trailing,
         ]),
+      );
+}
+
+/// "Verify" for the contact this account hasn't verified yet (optional).
+class _VerifyButton extends StatelessWidget {
+  const _VerifyButton({required this.email});
+
+  final bool email;
+
+  @override
+  Widget build(BuildContext context) => FilledButton.tonal(
+        onPressed: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => ContactVerifyScreen(channel: email ? 'email' : 'phone')),
+        ),
+        style: FilledButton.styleFrom(visualDensity: VisualDensity.compact),
+        child: const Text('Verify'),
       );
 }

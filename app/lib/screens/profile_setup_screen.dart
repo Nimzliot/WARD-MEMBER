@@ -101,7 +101,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
         children: [
           OnboardingHeader(
             step: 2,
-            total: 3,
+            total: 2,
             showBack: false,
             icon: Icons.badge_outlined,
             title: 'Almost there',

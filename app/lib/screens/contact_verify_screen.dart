@@ -16,7 +16,11 @@ import '../widgets/otp_input.dart';
 /// mobile. They signed in with one; here they add and verify the other (their
 /// choice of sign-in method stays open, and receipts go to the verified email).
 class ContactVerifyScreen extends StatefulWidget {
-  const ContactVerifyScreen({super.key});
+  const ContactVerifyScreen({super.key, this.channel});
+
+  /// 'email' or 'phone' when opened from Profile (optional verification);
+  /// null = onboarding (verify whichever is missing).
+  final String? channel;
 
   @override
   State<ContactVerifyScreen> createState() => _ContactVerifyScreenState();
@@ -33,8 +37,9 @@ class _ContactVerifyScreenState extends State<ContactVerifyScreen> {
 
   AuthProvider get _auth => context.read<AuthProvider>();
 
-  /// Which contact is missing (email first if both somehow are).
-  bool get _needEmail => !context.watch<AuthProvider>().hasVerifiedEmail;
+  /// Which contact this screen verifies.
+  bool get _needEmail => widget.channel != null ? widget.channel == 'email' : !_auth.hasVerifiedEmail;
+  bool get _fromProfile => widget.channel != null;
 
   @override
   void dispose() {
@@ -98,7 +103,14 @@ class _ContactVerifyScreenState extends State<ContactVerifyScreen> {
       await ApiService.post('/api/contact/$_channel/verify', {_channel: _target, 'otp': _code.text});
       if (!mounted) return;
       HapticFeedback.mediumImpact();
-      await _auth.contactVerified(); // router moves on once both are verified
+      await _auth.contactVerified();
+      if (_fromProfile && mounted) {
+        final messenger = ScaffoldMessenger.of(context);
+        Navigator.of(context).pop();
+        messenger.showSnackBar(SnackBar(
+          content: Text(_needEmail ? 'Email verified. You can now sign in with it too.' : 'Mobile verified. You can now sign in with it too.'),
+        ));
+      }
     } on ApiException catch (e) {
       if (!mounted) return;
       if (e.statusCode == 0 && await showFailure(context, e)) return;
@@ -114,12 +126,20 @@ class _ContactVerifyScreenState extends State<ContactVerifyScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
-    final needEmail = _needEmail;
+    final needEmail = widget.channel != null ? widget.channel == 'email' : !auth.hasVerifiedEmail;
     final signedInWith = needEmail ? 'mobile number' : 'email';
 
     return Scaffold(
       body: SingleChildScrollView(
         child: Column(children: [
+          if (_fromProfile)
+            BrandHeader(
+              showBack: true,
+              title: needEmail ? 'Verify your email' : 'Verify your mobile',
+              subtitle: 'Optional · lets you sign in either way',
+              bottomPadding: 18,
+            )
+          else
           OnboardingHeader(
             step: 3,
             total: 3,

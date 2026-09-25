@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../providers/auth_provider.dart';
 import '../services/funds_service.dart';
 import '../theme.dart';
 import '../utils/errors.dart';
@@ -500,7 +502,9 @@ class _ContributeSheetState extends State<ContributeSheet> with WidgetsBindingOb
             child: Text(
               _result!.receiptEmail != null
                   ? 'Receipt emailed to ${_result!.receiptEmail}'
-                  : 'A receipt is on its way to your verified email.',
+                  : context.read<AuthProvider>().hasVerifiedEmail
+                      ? 'A receipt is on its way to your verified email.'
+                      : 'Verify your email in Profile to get receipts by email.',
               style: const TextStyle(color: AppColors.forestDark, fontSize: 13),
             ),
           ),
