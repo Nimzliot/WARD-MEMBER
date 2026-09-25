@@ -17,8 +17,17 @@ import '../widgets/common.dart';
 import '../widgets/failure_view.dart';
 import '../widgets/fund_widgets.dart';
 
-/// Ward Fund: fundraisers run by the Ward Admin; residents contribute through
-/// Razorpay (test mode). Totals only count payments Razorpay has confirmed.
+const _levelIcons = [
+  Icons.eco_outlined,
+  Icons.grass_rounded,
+  Icons.spa_rounded,
+  Icons.park_rounded,
+  Icons.forest_rounded,
+  Icons.emoji_events_rounded,
+];
+
+/// Ward Fund: one fund per ward. Any ward member can send money to it, any
+/// time (Razorpay test mode). The ward grows through levels as money comes in.
 class FundsScreen extends StatefulWidget {
   const FundsScreen({super.key});
 
@@ -50,50 +59,36 @@ class _FundsScreenState extends State<FundsScreen> {
     }
   }
 
-  Future<void> _newCampaign() async {
-    final created = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) => const _NewCampaignSheet(),
-    );
-    if (created == true) _load();
-  }
-
-  Future<void> _contribute(Campaign c) async {
+  Future<void> _give() async {
+    final s = _state;
+    if (s == null) return;
     final paid = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
       isDismissible: false,
-      builder: (_) => ContributeSheet(campaign: c, testMode: _state?.testMode ?? true),
+      builder: (_) => ContributeSheet(fund: s),
     );
     if (paid == true) _load();
-  }
-
-  Future<void> _setStatus(Campaign c, String status) async {
-    try {
-      await FundsService.setStatus(c.id, status);
-      _load();
-    } catch (e) {
-      if (mounted && !await showFailure(context, e) && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
-      }
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     final s = _state;
-    final total = s?.campaigns.fold<int>(0, (a, c) => a + c.raised) ?? 0;
     return Scaffold(
-      floatingActionButton: (s?.canManage ?? false)
-          ? FloatingActionButton.extended(
-              onPressed: _newCampaign,
-              icon: const Icon(Icons.volunteer_activism_rounded),
-              label: const Text('New fundraiser', style: TextStyle(fontWeight: FontWeight.w700)),
-            )
-          : null,
+      bottomNavigationBar: s == null
+          ? null
+          : SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                child: PulseButton(
+                  label: s.myTotal > 0 ? 'Give again' : 'Send to ward fund',
+                  icon: Icons.volunteer_activism_rounded,
+                  onPressed: s.paymentsEnabled ? _give : null,
+                ),
+              ),
+            ),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
@@ -102,65 +97,37 @@ class _FundsScreenState extends State<FundsScreen> {
             BrandHeader(
               showBack: true,
               title: 'Ward Fund',
-              subtitle: 'Chip in for projects your ward wants',
+              subtitle: s?.wardName,
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const HeaderLabel('Raised so far'),
+                const HeaderLabel('Raised by residents'),
                 const SizedBox(height: 2),
                 CountUpInr(
-                  value: total,
-                  style: const TextStyle(color: Colors.white, fontSize: 34, fontWeight: FontWeight.w800, letterSpacing: -0.5),
+                  value: s?.raised ?? 0,
+                  style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.w800, letterSpacing: -0.5),
                 ),
-                const SizedBox(height: 10),
-                if (s?.testMode ?? true)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
-                    ),
-                    child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(Icons.science_outlined, size: 15, color: AppColors.leaf),
-                      SizedBox(width: 6),
-                      Text('Razorpay test mode · demo payments, no real money',
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12)),
-                    ]),
-                  ),
+                const SizedBox(height: 12),
+                Wrap(spacing: 8, runSpacing: 8, children: [
+                  _HeaderStat(icon: Icons.people_alt_rounded, value: '${s?.supporters ?? 0}'),
+                  _HeaderStat(icon: Icons.favorite_rounded, value: '${s?.payments ?? 0}'),
+                  if ((s?.myTotal ?? 0) > 0) _HeaderStat(icon: Icons.person_rounded, value: inrCompact(s!.myTotal), bright: true),
+                  if (s?.testMode ?? true) const _HeaderStat(icon: Icons.science_outlined, value: 'TEST'),
+                ]),
               ]),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 20, 16, 96),
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
               child: _error != null
-                  ? SizedBox(height: 520, child: ErrorView(error: _error, onRetry: _load))
+                  ? SizedBox(height: 480, child: ErrorView(error: _error, onRetry: _load))
                   : s == null
                       ? const Padding(padding: EdgeInsets.all(48), child: Center(child: CircularProgressIndicator()))
-                      : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                           if (!s.paymentsEnabled) ...[
-                            const MessageBanner(
-                              'Payments are not switched on yet. The ward office needs to add Razorpay test keys on the server.',
-                              isError: false,
-                            ),
+                            const MessageBanner('Payments are not switched on yet.', isError: false),
                             const SizedBox(height: 16),
                           ],
-                          SectionTitle('Fundraisers', count: s.campaigns.length),
-                          if (s.campaigns.isEmpty)
-                            EmptyView(
-                              icon: Icons.volunteer_activism_outlined,
-                              message: s.canManage
-                                  ? 'No fundraisers yet.\nTap "New fundraiser" to start one.'
-                                  : 'No fundraisers yet.\nYour Ward Admin will start one when a project needs support.',
-                            )
-                          else
-                            for (final c in s.campaigns) ...[
-                              _CampaignCard(
-                                campaign: c,
-                                canPay: s.paymentsEnabled,
-                                canManage: s.canManage,
-                                onContribute: () => _contribute(c),
-                                onStatus: (st) => _setStatus(c, st),
-                              ),
-                              const SizedBox(height: 14),
-                            ],
+                          _LevelCard(fund: s),
+                          const SizedBox(height: 14),
+                          _SupporterWall(fund: s),
                         ]),
             ),
           ],
@@ -170,136 +137,204 @@ class _FundsScreenState extends State<FundsScreen> {
   }
 }
 
-class _CampaignCard extends StatelessWidget {
-  const _CampaignCard({
-    required this.campaign,
-    required this.canPay,
-    required this.canManage,
-    required this.onContribute,
-    required this.onStatus,
-  });
+class _HeaderStat extends StatelessWidget {
+  const _HeaderStat({required this.icon, required this.value, this.bright = false});
 
-  final Campaign campaign;
-  final bool canPay;
-  final bool canManage;
-  final VoidCallback onContribute;
-  final ValueChanged<String> onStatus;
+  final IconData icon;
+  final String value;
+  final bool bright;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: bright ? AppColors.leaf : Colors.white.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 16, color: bright ? AppColors.forestDark : AppColors.leaf),
+          const SizedBox(width: 6),
+          Text(value,
+              style: TextStyle(
+                  color: bright ? AppColors.forestDark : Colors.white, fontWeight: FontWeight.w800, fontSize: 13)),
+        ]),
+      );
+}
+
+/// Ring to the next level + the level ladder (seed → trophy).
+class _LevelCard extends StatelessWidget {
+  const _LevelCard({required this.fund});
+
+  final FundsState fund;
 
   @override
   Widget build(BuildContext context) {
-    final c = campaign;
-    final remaining = (c.goal - c.raised).clamp(0, c.goal);
+    final next = fund.nextLevel;
+    final reached = fund.levelReached;
     return Card(
-      clipBehavior: Clip.antiAlias,
-      child: Stack(children: [
-        Padding(
-          // extra top room when the "you helped" ribbon is shown
-          padding: EdgeInsets.fromLTRB(16, c.myTotal > 0 ? 34 : 16, 16, 16),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            // Title row
-            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(
-                child: Text(c.title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, height: 1.25)),
-              ),
-              if (c.isOpen && c.closesAt != null) ...[const SizedBox(width: 8), DaysLeftRing(closesAt: c.closesAt!)],
-              if (!c.isOpen)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(color: AppColors.canvas, borderRadius: BorderRadius.circular(20)),
-                  child: const Icon(Icons.lock_rounded, size: 16, color: AppColors.inkMuted),
-                ),
-              if (canManage)
-                PopupMenuButton<String>(
-                  onSelected: onStatus,
-                  itemBuilder: (_) => [
-                    if (c.status == 'active') const PopupMenuItem(value: 'closed', child: Text('Close fundraiser')),
-                    if (c.status != 'active') const PopupMenuItem(value: 'active', child: Text('Reopen fundraiser')),
-                  ],
-                ),
-            ]),
-            const SizedBox(height: 14),
-            // Ring + numbers
-            Row(children: [
-              ProgressRing(value: c.progress),
-              const SizedBox(width: 18),
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  CountUpInr(
-                    value: c.raised,
-                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: AppColors.forestDark),
-                  ),
-                  Row(children: [
-                    const Icon(Icons.flag_rounded, size: 15, color: AppColors.inkMuted),
-                    const SizedBox(width: 4),
-                    Text(inr(c.goal), style: const TextStyle(color: AppColors.inkMuted, fontWeight: FontWeight.w600)),
-                  ]),
-                  const SizedBox(height: 10),
-                  Row(children: [
-                    SupporterStack(names: [for (final r in c.recent) r.name], total: c.backers),
-                    const SizedBox(width: 8),
-                    Text('${c.backers}',
-                        style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.forest, fontSize: 16)),
-                    const SizedBox(width: 2),
-                    const Icon(Icons.favorite_rounded, size: 15, color: AppColors.emerald),
-                  ]),
-                ]),
-              ),
-            ]),
-            const SizedBox(height: 16),
-            MilestoneTrack(value: c.progress),
-            if (remaining > 0 && c.isOpen) ...[
-              const SizedBox(height: 10),
-              Row(children: [
-                const Icon(Icons.trending_up_rounded, size: 18, color: AppColors.emerald),
-                const SizedBox(width: 6),
-                Text(inrCompact(remaining),
-                    style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.forest)),
-                const SizedBox(width: 4),
-                const Icon(Icons.arrow_forward_rounded, size: 16, color: AppColors.inkMuted),
-                const SizedBox(width: 4),
-                const Icon(Icons.forest_rounded, size: 18, color: AppColors.emerald),
-              ]),
-            ],
-            if (c.isOpen) ...[
-              const SizedBox(height: 14),
-              PulseButton(
-                label: c.myTotal > 0 ? 'Give again' : 'Contribute',
-                icon: Icons.volunteer_activism_rounded,
-                onPressed: canPay ? onContribute : null,
-              ),
-            ],
-          ]),
-        ),
-        // "You helped" ribbon
-        if (c.myTotal > 0)
-          Positioned(
-            left: 0,
-            top: 0,
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(10, 4, 12, 4),
-              decoration: const BoxDecoration(
-                gradient: AppTheme.aiGradient,
-                borderRadius: BorderRadius.only(bottomRight: Radius.circular(14)),
-              ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.favorite_rounded, size: 13, color: Colors.white),
-                const SizedBox(width: 4),
-                Text(inrCompact(c.myTotal),
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 11.5)),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(children: [
+          Row(children: [
+            ProgressRing(
+              value: fund.levelProgress,
+              size: 128,
+              stroke: 12,
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(_levelIcons[(reached).clamp(0, _levelIcons.length - 1)], size: 34, color: AppColors.emerald),
+                const SizedBox(height: 2),
+                Text('${(fund.levelProgress * 100).round()}%',
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.forestDark)),
               ]),
             ),
-          ),
-      ]),
+            const SizedBox(width: 18),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  const Icon(Icons.military_tech_rounded, color: AppColors.emerald, size: 22),
+                  const SizedBox(width: 6),
+                  Text('Level $reached', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+                ]),
+                const SizedBox(height: 10),
+                if (next != null) ...[
+                  Row(children: [
+                    const Icon(Icons.flag_rounded, size: 18, color: AppColors.inkMuted),
+                    const SizedBox(width: 6),
+                    Text(inrCompact(next),
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: AppColors.forestDark)),
+                  ]),
+                  const SizedBox(height: 6),
+                  Row(children: [
+                    const Icon(Icons.trending_up_rounded, size: 18, color: AppColors.emerald),
+                    const SizedBox(width: 6),
+                    Text(inrCompact(next - fund.raised),
+                        style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.forest)),
+                    const SizedBox(width: 4),
+                    Icon(_levelIcons[(reached + 1).clamp(0, _levelIcons.length - 1)], size: 18, color: AppColors.emerald),
+                  ]),
+                ] else
+                  const Icon(Icons.emoji_events_rounded, color: Color(0xFFD4A017), size: 34),
+              ]),
+            ),
+          ]),
+          const SizedBox(height: 18),
+          _LevelLadder(levels: fund.levels, reached: reached),
+        ]),
+      ),
     );
   }
 }
 
+class _LevelLadder extends StatelessWidget {
+  const _LevelLadder({required this.levels, required this.reached});
+
+  final List<int> levels;
+  final int reached;
+
+  @override
+  Widget build(BuildContext context) => Row(children: [
+        for (var i = 0; i < levels.length; i++) ...[
+          if (i > 0)
+            Expanded(
+              child: Container(
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 18),
+                decoration: BoxDecoration(
+                  color: i <= reached - 1 ? AppColors.emerald : AppColors.mint,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+          Column(mainAxisSize: MainAxisSize.min, children: [
+            TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0.6, end: 1),
+              duration: Duration(milliseconds: 500 + i * 120),
+              curve: Curves.easeOutBack,
+              builder: (_, v, child) => Transform.scale(scale: v, child: child),
+              child: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: i < reached ? AppColors.emerald : Colors.white,
+                  border: Border.all(color: i < reached ? AppColors.emerald : AppColors.mintLine, width: 2),
+                  boxShadow: i < reached ? [BoxShadow(color: AppColors.emerald.withValues(alpha: 0.35), blurRadius: 8)] : null,
+                ),
+                child: Icon(_levelIcons[(i + 1).clamp(0, _levelIcons.length - 1)],
+                    size: 18, color: i < reached ? Colors.white : AppColors.mintLine),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(levels[i] < 100000 ? '₹${levels[i] ~/ 1000}K' : inrCompact(levels[i]).replaceAll('.0', ''),
+                style: TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w700,
+                    color: i < reached ? AppColors.forest : AppColors.inkMuted)),
+          ]),
+        ],
+      ]);
+}
+
+/// Faces of the people who gave, with their amounts.
+class _SupporterWall extends StatelessWidget {
+  const _SupporterWall({required this.fund});
+
+  final FundsState fund;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              SupporterStack(names: [for (final r in fund.recent) r.name], total: fund.supporters, size: 40),
+              const Spacer(),
+              Text('${fund.supporters}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.forest)),
+              const SizedBox(width: 4),
+              const Icon(Icons.favorite_rounded, color: AppColors.emerald),
+            ]),
+            if (fund.recent.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              Wrap(spacing: 8, runSpacing: 8, children: [
+                for (final r in fund.recent)
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(6, 5, 12, 5),
+                    decoration: BoxDecoration(color: AppColors.canvas, borderRadius: BorderRadius.circular(20)),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      CircleAvatar(
+                        radius: 11,
+                        backgroundColor: AppColors.mint,
+                        child: r.name == 'Anonymous'
+                            ? const Icon(Icons.favorite_rounded, size: 12, color: AppColors.emerald)
+                            : Text(r.name[0].toUpperCase(),
+                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.forest)),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(inrCompact(r.amount), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5)),
+                    ]),
+                  ),
+              ]),
+            ] else ...[
+              const SizedBox(height: 12),
+              const Row(children: [
+                Icon(Icons.volunteer_activism_rounded, color: AppColors.emerald),
+                SizedBox(width: 8),
+                Icon(Icons.arrow_forward_rounded, size: 16, color: AppColors.inkMuted),
+                SizedBox(width: 8),
+                Icon(Icons.eco_outlined, color: AppColors.emerald),
+              ]),
+            ],
+          ]),
+        ),
+      );
+}
+
 /// Amount picker → Razorpay page in the browser → wait for confirmation.
 class ContributeSheet extends StatefulWidget {
-  const ContributeSheet({super.key, required this.campaign, required this.testMode});
+  const ContributeSheet({super.key, required this.fund});
 
-  final Campaign campaign;
-  final bool testMode;
+  final FundsState fund;
 
   @override
   State<ContributeSheet> createState() => _ContributeSheetState();
@@ -358,7 +393,7 @@ class _ContributeSheetState extends State<ContributeSheet> with WidgetsBindingOb
     try {
       if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
         // APK: Razorpay's native Checkout opens inside the app (test mode).
-        final o = await FundsService.checkout(widget.campaign.id, amount: amount, anonymous: _anonymous);
+        final o = await FundsService.checkout(amount: amount, anonymous: _anonymous);
         _contributionId = o['contributionId'] as String;
         _orderId = o['orderId'] as String;
         _rzp ??= Razorpay()
@@ -379,7 +414,7 @@ class _ContributeSheetState extends State<ContributeSheet> with WidgetsBindingOb
         return;
       }
       // Web: Razorpay payment page in a new tab, then we poll for confirmation.
-      final r = await FundsService.contribute(widget.campaign.id, amount: amount, anonymous: _anonymous);
+      final r = await FundsService.contribute(amount: amount, anonymous: _anonymous);
       _contributionId = r.contributionId;
       _paymentUrl = r.url;
       await _open();
@@ -483,9 +518,9 @@ class _ContributeSheetState extends State<ContributeSheet> with WidgetsBindingOb
   }
 
   Widget _choose(ThemeData theme) => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Contribute', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
+        Text('Send to ward fund', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
         const SizedBox(height: 2),
-        Text(widget.campaign.title, style: const TextStyle(color: AppColors.inkMuted)),
+        Text(widget.fund.wardName, style: const TextStyle(color: AppColors.inkMuted)),
         const SizedBox(height: 18),
         Row(children: [
           for (final (i, a) in _presets.indexed) ...[
@@ -504,7 +539,7 @@ class _ContributeSheetState extends State<ContributeSheet> with WidgetsBindingOb
           ],
         ]),
         const SizedBox(height: 14),
-        _ImpactBar(campaign: widget.campaign, gift: int.tryParse(_custom.text) ?? _amount),
+        _ImpactBar(fund: widget.fund, gift: int.tryParse(_custom.text) ?? _amount),
         const SizedBox(height: 12),
         TextField(
           controller: _custom,
@@ -521,7 +556,7 @@ class _ContributeSheetState extends State<ContributeSheet> with WidgetsBindingOb
           secondary: const Icon(Icons.visibility_off_rounded, color: AppColors.forest),
           title: const Text('Give anonymously', style: TextStyle(fontWeight: FontWeight.w600)),
         ),
-        if (widget.testMode) ...[
+        if (widget.fund.testMode) ...[
           const MessageBanner(
             'Razorpay TEST MODE: use test UPI "success@razorpay" or card 4111 1111 1111 1111. No real money is charged.',
             isError: false,
@@ -581,7 +616,7 @@ class _ContributeSheetState extends State<ContributeSheet> with WidgetsBindingOb
         const SizedBox(height: 14),
         Text('Thank you!', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
         const SizedBox(height: 4),
-        Text('${inr(_result!.amount)} to ${widget.campaign.title}',
+        Text('${inr(_result!.amount)} to ${widget.fund.wardName}',
             textAlign: TextAlign.center, style: const TextStyle(color: AppColors.inkMuted)),
         const SizedBox(height: 16),
         Container(
@@ -637,99 +672,6 @@ class _ContributeSheetState extends State<ContributeSheet> with WidgetsBindingOb
       ]);
 }
 
-class _NewCampaignSheet extends StatefulWidget {
-  const _NewCampaignSheet();
-
-  @override
-  State<_NewCampaignSheet> createState() => _NewCampaignSheetState();
-}
-
-class _NewCampaignSheetState extends State<_NewCampaignSheet> {
-  final _title = TextEditingController();
-  final _description = TextEditingController();
-  final _goal = TextEditingController();
-  DateTime? _closes = DateTime.now().add(const Duration(days: 30));
-  bool _saving = false;
-  String? _error;
-
-  @override
-  void dispose() {
-    _title.dispose();
-    _description.dispose();
-    _goal.dispose();
-    super.dispose();
-  }
-
-  Future<void> _save() async {
-    final goal = int.tryParse(_goal.text);
-    if (_title.text.trim().length < 3) return setState(() => _error = 'Give the fundraiser a title');
-    if (goal == null || goal < 100) return setState(() => _error = 'Goal must be at least ₹100');
-    setState(() {
-      _saving = true;
-      _error = null;
-    });
-    try {
-      await FundsService.create(title: _title.text.trim(), description: _description.text.trim(), goal: goal, closesAt: _closes);
-      if (mounted) Navigator.pop(context, true);
-    } catch (e) {
-      if (mounted) setState(() => _error = friendlyError(e));
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + MediaQuery.viewInsetsOf(context).bottom),
-        child: SingleChildScrollView(
-          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('New fundraiser', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _title,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(labelText: 'Title', hintText: 'e.g. Benches for Gandhi Maidan'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _description,
-              maxLines: 3,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(labelText: 'What the money is for', alignLabelWithHint: true),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _goal,
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(9)],
-              decoration: const InputDecoration(labelText: 'Goal', prefixText: '₹ '),
-            ),
-            const SizedBox(height: 12),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.event_rounded, color: AppColors.forest),
-              title: Text(_closes == null ? 'No end date' : 'Ends ${formatDateTime(_closes!)}'),
-              trailing: TextButton(
-                onPressed: () async {
-                  final d = await showDatePicker(
-                    context: context,
-                    initialDate: _closes ?? DateTime.now().add(const Duration(days: 30)),
-                    firstDate: DateTime.now(),
-                    lastDate: DateTime.now().add(const Duration(days: 365)),
-                  );
-                  if (d != null) setState(() => _closes = DateTime(d.year, d.month, d.day, 23, 59));
-                },
-                child: const Text('Change'),
-              ),
-            ),
-            if (_error != null) ...[MessageBanner(_error!), const SizedBox(height: 12)],
-            PrimaryButton(label: 'Start fundraiser', icon: Icons.volunteer_activism_rounded, loading: _saving, onPressed: _save),
-          ]),
-        ),
-      );
-}
-
-
 /// Tappable amount with a growth icon (seed → tree).
 class _AmountCard extends StatelessWidget {
   const _AmountCard({required this.amount, required this.icon, required this.selected, required this.onTap});
@@ -769,16 +711,17 @@ class _AmountCard extends StatelessWidget {
 
 /// Where the fund is now (solid) and how far this gift pushes it (glowing).
 class _ImpactBar extends StatelessWidget {
-  const _ImpactBar({required this.campaign, required this.gift});
+  const _ImpactBar({required this.fund, required this.gift});
 
-  final Campaign campaign;
+  final FundsState fund;
   final int gift;
 
   @override
   Widget build(BuildContext context) {
-    final goal = campaign.goal.toDouble();
-    final now = (campaign.raised / goal).clamp(0.0, 1.0);
-    final after = ((campaign.raised + gift) / goal).clamp(0.0, 1.0);
+    // progress towards the next level (or the top level once everything is reached)
+    final goal = (fund.nextLevel ?? fund.levels.last).toDouble();
+    final now = (fund.raised / goal).clamp(0.0, 1.0);
+    final after = ((fund.raised + gift) / goal).clamp(0.0, 1.0);
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(color: AppColors.canvas, borderRadius: BorderRadius.circular(14)),
@@ -816,7 +759,9 @@ class _ImpactBar extends StatelessWidget {
           const SizedBox(width: 6),
           Text('${(after * 100).round()}%', style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.forest, fontSize: 16)),
           const Spacer(),
-          const Icon(Icons.favorite_rounded, size: 16, color: AppColors.emerald),
+          const Icon(Icons.flag_rounded, size: 16, color: AppColors.inkMuted),
+          const SizedBox(width: 4),
+          Text(inrCompact(goal), style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.inkMuted)),
         ]),
       ]),
     );

@@ -11,45 +11,42 @@ class Supporter {
   final DateTime? paidAt;
 }
 
-class Campaign {
-  Campaign.fromMap(Map<String, dynamic> m)
-      : id = m['id'] as String,
-        title = m['title'] as String,
-        description = m['description'] as String? ?? '',
-        goal = (m['goal'] as num).toInt(),
-        raised = (m['raised'] as num?)?.toInt() ?? 0,
-        backers = (m['backers'] as num?)?.toInt() ?? 0,
-        myTotal = (m['my_total'] as num?)?.toInt() ?? 0,
-        status = m['status'] as String? ?? 'active',
-        closesAt = m['closes_at'] == null ? null : DateTime.parse(m['closes_at'] as String).toLocal(),
-        recent = [for (final r in (m['recent'] as List? ?? const [])) Supporter.fromMap(r as Map<String, dynamic>)];
-
-  final String id;
-  final String title;
-  final String description;
-  final int goal; // INR
-  final int raised; // INR, confirmed payments only
-  final int backers;
-  final int myTotal;
-  final String status;
-  final DateTime? closesAt;
-  final List<Supporter> recent;
-
-  bool get isOpen => status == 'active' && (closesAt == null || closesAt!.isAfter(DateTime.now()));
-  double get progress => goal == 0 ? 0 : (raised / goal).clamp(0.0, 1.0);
-}
-
+/// The ward's single fund: any ward member can send money to it, any time.
 class FundsState {
   FundsState.fromMap(Map<String, dynamic> m)
-      : campaigns = [for (final c in (m['campaigns'] as List? ?? const [])) Campaign.fromMap(c as Map<String, dynamic>)],
+      : wardName = m['ward_name'] as String? ?? 'Your ward',
+        raised = (m['raised'] as num?)?.toInt() ?? 0,
+        payments = (m['payments'] as num?)?.toInt() ?? 0,
+        supporters = (m['supporters'] as num?)?.toInt() ?? 0,
+        myTotal = (m['my_total'] as num?)?.toInt() ?? 0,
+        levels = [for (final l in (m['levels'] as List? ?? const [10000, 50000, 100000, 500000])) (l as num).toInt()],
+        recent = [for (final r in (m['recent'] as List? ?? const [])) Supporter.fromMap(r as Map<String, dynamic>)],
         paymentsEnabled = m['payments_enabled'] as bool? ?? false,
-        testMode = m['test_mode'] as bool? ?? true,
-        canManage = m['can_manage'] as bool? ?? false;
+        testMode = m['test_mode'] as bool? ?? true;
 
-  final List<Campaign> campaigns;
+  final String wardName;
+  final int raised; // INR, confirmed payments only
+  final int payments;
+  final int supporters;
+  final int myTotal;
+  final List<int> levels; // ₹ milestones the ward grows through
+  final List<Supporter> recent;
   final bool paymentsEnabled;
   final bool testMode;
-  final bool canManage; // Ward Admin (or super admin)
+
+  /// Levels reached so far (0..levels.length).
+  int get levelReached => levels.where((l) => raised >= l).length;
+
+  /// The next milestone, or null when every level is reached.
+  int? get nextLevel => levelReached < levels.length ? levels[levelReached] : null;
+
+  /// Progress from the previous milestone to the next (0..1).
+  double get levelProgress {
+    final next = nextLevel;
+    if (next == null) return 1;
+    final prev = levelReached == 0 ? 0 : levels[levelReached - 1];
+    return ((raised - prev) / (next - prev)).clamp(0.0, 1.0);
+  }
 }
 
 class Contribution {
@@ -72,42 +69,26 @@ class Contribution {
   bool get isOver => status == 'failed' || status == 'expired';
 }
 
-/// Ward fundraising through the Node API (Razorpay test mode).
+/// Ward Fund through the Node API (Razorpay test mode).
 class FundsService {
   static Future<FundsState> load() async => FundsState.fromMap(await ApiService.get('/api/funds'));
 
-  static Future<void> create({
-    required String title,
-    required String description,
-    required int goal,
-    DateTime? closesAt,
-  }) =>
-      ApiService.post('/api/funds', {
-        'title': title,
-        'description': description,
-        'goal': goal,
-        if (closesAt != null) 'closesAt': closesAt.toUtc().toIso8601String(),
-      });
+  /// APK: Razorpay order for the in-app Checkout (key id, amount in paise, prefill…).
+  static Future<Map<String, dynamic>> checkout({required int amount, required bool anonymous}) =>
+      ApiService.post('/api/funds/checkout', {'amount': amount, 'anonymous': anonymous});
 
-  static Future<void> setStatus(String id, String status) => ApiService.patch('/api/funds/$id', {'status': status});
-
-  /// Starts a payment. Returns the contribution id and the Razorpay page to open.
-  static Future<({String contributionId, String url, bool testMode})> contribute(
-    String campaignId, {
+  /// Web: Razorpay payment page to open in a new tab.
+  static Future<({String contributionId, String url, bool testMode})> contribute({
     required int amount,
     required bool anonymous,
   }) async {
-    final r = await ApiService.post('/api/funds/$campaignId/contribute', {'amount': amount, 'anonymous': anonymous});
+    final r = await ApiService.post('/api/funds/contribute', {'amount': amount, 'anonymous': anonymous});
     return (
       contributionId: r['contributionId'] as String,
       url: r['paymentUrl'] as String,
       testMode: r['testMode'] as bool? ?? true,
     );
   }
-
-  /// APK: creates a Razorpay order for the in-app Checkout (key id, amount in paise, prefill…).
-  static Future<Map<String, dynamic>> checkout(String campaignId, {required int amount, required bool anonymous}) =>
-      ApiService.post('/api/funds/$campaignId/checkout', {'amount': amount, 'anonymous': anonymous});
 
   /// APK: after Checkout success, the server verifies the signature and confirms capture.
   static Future<Contribution> verify(String contributionId,

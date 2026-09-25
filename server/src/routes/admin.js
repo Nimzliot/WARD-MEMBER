@@ -103,10 +103,20 @@ router.patch('/wards/:id', async (req, res) => {
   // so the window stays valid (closes > opens).
   const current = must(await supabase.from('wards').select('*').eq('id', id).maybeSingle());
   if (!current) return res.status(404).json({ error: 'Ward not found' });
+  // Ward Admin = a normal resident (never a super admin). Strictly one per ward,
+  // and one person can be Ward Admin of only one ward at a time.
   if (fields.admin_user_id) {
-    const person = must(await supabase.from('profiles').select('ward_id, full_name').eq('id', fields.admin_user_id).maybeSingle());
+    const person = must(await supabase.from('profiles').select('ward_id, resident_id, full_name, role').eq('id', fields.admin_user_id).maybeSingle());
     if (!person) return res.status(404).json({ error: 'User not found' });
-    if (person.ward_id !== id) return bad(res, `${person.full_name || 'This user'} lives in another ward. Pick a resident of this ward.`);
+    if (person.role === 'admin') return bad(res, 'Super admins can\'t be Ward Admins. Pick a resident.');
+    if (!person.ward_id || !person.resident_id) return bad(res, `${person.full_name || 'This person'} hasn't finished their resident profile yet.`);
+    const elsewhere = must(await supabase.from('wards').select('id, name').eq('admin_user_id', fields.admin_user_id).neq('id', id).limit(1));
+    if (elsewhere.length) {
+      return res.status(409).json({
+        error: `${person.full_name} is already Ward Admin of ${elsewhere[0].name}. Remove them there first.`,
+        code: 'ALREADY_WARD_ADMIN',
+      });
+    }
   }
   const opens = fields.voting_opens_at !== undefined ? fields.voting_opens_at : current.voting_opens_at;
   const closes = fields.voting_closes_at !== undefined ? fields.voting_closes_at : current.voting_closes_at;
@@ -236,12 +246,61 @@ router.get('/users', async (req, res) => {
   const q = String(req.query.q || '').trim().replace(/[%,()]/g, '');
   if (q) query = query.or(`full_name.ilike.%${q}%,email.ilike.%${q}%,phone.ilike.%${q}%,resident_id.ilike.%${q}%`);
 
-  const [users, voters] = await Promise.all([
+  const [users, voters, wardAdmins] = await Promise.all([
     query.then(must),
     supabase.from('votes').select('user_id').not('user_id', 'is', null).then(must),
+    supabase.from('wards').select('id, admin_user_id').not('admin_user_id', 'is', null).then(must),
   ]);
   const voted = new Set(voters.map((v) => v.user_id));
-  res.json({ users: users.map((u) => ({ ...u, has_voted: voted.has(u.id) })) });
+  const adminOf = Object.fromEntries(wardAdmins.map((w) => [w.admin_user_id, w.id]));
+  res.json({
+    users: users.map((u) => ({ ...u, has_voted: voted.has(u.id), ward_admin_of: adminOf[u.id] ?? null })),
+  });
+});
+
+// GET /api/admin/overview → analysis across every ward (super admin dashboard)
+router.get('/overview', async (req, res) => {
+  const [wards, profiles, votes, proposals] = await Promise.all([
+    supabase.from('wards').select('id, name, budget_pool, admin_user_id, voting_opens_at, voting_closes_at').order('id', { ascending: true }).then(must),
+    supabase.from('profiles').select('id, ward_id, resident_id, role, full_name').then(must),
+    supabase.from('votes').select('ward_id').then(must),
+    supabase.from('proposals').select('ward_id, status, total_cost').then(must),
+  ]);
+  const funds = await require('./ward_admin').contributionsFor(wards.map((w) => w.id));
+  const names = Object.fromEntries(profiles.map((p) => [p.id, p.full_name]));
+  const rows = wards.map((w) => {
+    const residents = profiles.filter((p) => p.ward_id === w.id && p.resident_id && p.role !== 'admin').length;
+    const ballots = votes.filter((v) => v.ward_id === w.id).length;
+    const fund = funds.wards.find((f) => f.ward_id === w.id) || { raised: 0, supporters: 0, payments: 0 };
+    return {
+      id: w.id,
+      name: w.name,
+      phase: wardPhase(w),
+      budget_pool: w.budget_pool,
+      ward_admin: w.admin_user_id ? names[w.admin_user_id] || 'Resident' : null,
+      residents,
+      ballots,
+      turnout: residents ? ballots / residents : 0,
+      approved: proposals.filter((p) => p.ward_id === w.id && p.status === 'approved').length,
+      pending_ideas: proposals.filter((p) => p.ward_id === w.id && p.status === 'pending').length,
+      requested: proposals.filter((p) => p.ward_id === w.id && p.status === 'approved').reduce((s, p) => s + Number(p.total_cost), 0),
+      raised: fund.raised,
+      supporters: fund.supporters,
+    };
+  });
+  const sum = (k) => rows.reduce((s, r) => s + r[k], 0);
+  res.json({
+    totals: {
+      wards: rows.length,
+      residents: sum('residents'),
+      ballots: sum('ballots'),
+      pending_ideas: sum('pending_ideas'),
+      raised: sum('raised'),
+      budget: sum('budget_pool'),
+      ward_admins: rows.filter((r) => r.ward_admin).length,
+    },
+    wards: rows,
+  });
 });
 
 // PATCH /api/admin/users/:id { role?: 'resident'|'admin', wardId?: number }
@@ -250,13 +309,25 @@ router.patch('/users/:id', async (req, res) => {
   if (!UUID_RE.test(id)) return bad(res, 'Invalid id');
   const { role, wardId } = req.body || {};
   const fields = {};
+  const adminOf = must(await supabase.from('wards').select('id, name').eq('admin_user_id', id).limit(1))[0];
   if (role !== undefined) {
     if (!['resident', 'admin'].includes(role)) return bad(res, 'role must be resident or admin');
     if (id === req.user.id && role !== 'admin') return bad(res, 'You cannot remove your own admin role');
     fields.role = role;
+    if (role === 'admin') {
+      // Super admins don't belong to a ward and only use the admin panel.
+      if (adminOf) {
+        return res.status(409).json({ error: `They are Ward Admin of ${adminOf.name}. Remove that first.`, code: 'ALREADY_WARD_ADMIN' });
+      }
+      fields.ward_id = null;
+      fields.resident_id = null;
+    }
   }
   if (wardId !== undefined) {
     if (!Number.isInteger(wardId)) return bad(res, 'wardId must be a number');
+    if (adminOf && adminOf.id !== wardId) {
+      return res.status(409).json({ error: `They are Ward Admin of ${adminOf.name}. Remove that before moving them.`, code: 'ALREADY_WARD_ADMIN' });
+    }
     fields.ward_id = wardId;
   }
   if (!Object.keys(fields).length) return bad(res, 'Nothing to update');

@@ -36,7 +36,7 @@ router.get('/overview', async (req, res) => {
     supabase.from('proposals').select('status').eq('ward_id', id).then(must),
     supabase.from('votes').select('id', { count: 'exact', head: true }).eq('ward_id', id),
     supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('ward_id', id).not('resident_id', 'is', null),
-    supabase.from('campaigns').select('id, status').eq('ward_id', id).then(must),
+    supabase.from('campaigns').select('id').eq('ward_id', id).then(must),
     supabase.from('chat_threads').select('unread_admin').eq('ward_id', id).then(must),
   ]);
   const cIds = campaigns.map((c) => c.id);
@@ -49,7 +49,6 @@ router.get('/overview', async (req, res) => {
     pending_ideas: proposals.filter((p) => p.status === 'pending').length,
     ballots: ballots.count ?? 0,
     residents: residents.count ?? 0,
-    active_funds: campaigns.filter((c) => c.status === 'active').length,
     raised: paid.reduce((s, p) => s + Number(p.amount), 0),
     unread_messages: threads.reduce((s, t) => s + (t.unread_admin || 0), 0),
   });
@@ -119,34 +118,37 @@ router.get('/contributions', async (req, res) => {
   res.json(await contributionsFor([req.wardId]));
 });
 
-/** Contributions (all statuses) with campaign + contributor names. Shared with the super-admin view. */
+/** Ward Fund totals per ward + every contribution (all statuses) with contributor names.
+ *  Shared with the super-admin analysis view. */
 async function contributionsFor(wardIds) {
-  const campaigns = must(await supabase.from('campaigns').select('id, ward_id, title, goal, status, created_at')
-    .in('ward_id', wardIds).order('created_at', { ascending: false }));
-  const ids = campaigns.map((c) => c.id);
+  const funds = must(await supabase.from('campaigns').select('id, ward_id').in('ward_id', wardIds));
+  const ids = funds.map((c) => c.id);
   const rows = ids.length
     ? must(await supabase.from('contributions')
       .select('id, campaign_id, user_id, amount, anonymous, status, razorpay_payment_id, created_at, paid_at')
-      .in('campaign_id', ids).order('created_at', { ascending: false }).limit(500))
+      .in('campaign_id', ids).order('created_at', { ascending: false }).limit(1000))
     : [];
   const userIds = [...new Set(rows.map((r) => r.user_id).filter(Boolean))];
   const people = userIds.length
     ? Object.fromEntries(must(await supabase.from('profiles').select('id, full_name, resident_id').in('id', userIds)).map((p) => [p.id, p]))
     : {};
-  const byCampaign = Object.fromEntries(campaigns.map((c) => [c.id, c]));
-  return {
-    campaigns: campaigns.map((c) => {
-      const paid = rows.filter((r) => r.campaign_id === c.id && r.status === 'paid');
-      return { ...c, raised: paid.reduce((s, r) => s + Number(r.amount), 0), backers: new Set(paid.map((r) => r.user_id)).size };
-    }),
-    contributions: rows.map((r) => ({
-      ...r,
-      campaign_title: byCampaign[r.campaign_id]?.title ?? '',
-      ward_id: byCampaign[r.campaign_id]?.ward_id ?? null,
-      name: people[r.user_id]?.full_name ?? 'Resident',
-      resident_ref: people[r.user_id]?.resident_id ?? null,
-    })),
-  };
+  const wardOf = Object.fromEntries(funds.map((c) => [c.id, c.ward_id]));
+  const contributions = rows.map((r) => ({
+    ...r,
+    ward_id: wardOf[r.campaign_id] ?? null,
+    name: people[r.user_id]?.full_name ?? 'Resident',
+    resident_ref: people[r.user_id]?.resident_id ?? null,
+  }));
+  const wards = wardIds.map((id) => {
+    const paid = contributions.filter((c) => c.ward_id === id && c.status === 'paid');
+    return {
+      ward_id: id,
+      raised: paid.reduce((s, c) => s + Number(c.amount), 0),
+      payments: paid.length,
+      supporters: new Set(paid.map((c) => c.user_id)).size,
+    };
+  });
+  return { wards, contributions };
 }
 
 module.exports = { router, contributionsFor };

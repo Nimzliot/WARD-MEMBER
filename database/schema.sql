@@ -518,6 +518,27 @@ alter table public.contributions
   add column if not exists receipt_sent_at timestamptz,
   add column if not exists receipt_email   text;
 
+-- ---------------------------------------------------------------------
+-- 9. Strict Ward Admin rules (same as migration 006)
+-- ---------------------------------------------------------------------
+create unique index if not exists wards_one_ward_per_admin
+  on public.wards (admin_user_id) where admin_user_id is not null;
+
+create or replace function public.lock_ward_admin_ward()
+returns trigger language plpgsql security definer set search_path = public as $
+begin
+  if old.ward_id is distinct from new.ward_id
+     and exists (select 1 from public.wards where admin_user_id = old.id and id is distinct from new.ward_id) then
+    raise exception 'A Ward Admin cannot change ward. The super admin must remove them as Ward Admin first.';
+  end if;
+  return new;
+end $;
+
+drop trigger if exists profiles_lock_ward_admin on public.profiles;
+create trigger profiles_lock_ward_admin
+  before update of ward_id on public.profiles
+  for each row execute function public.lock_ward_admin_ward();
+
 -- Quick check (should show 3 wards with 4/4/3 proposals):
 select w.name, count(p.id) as proposals, sum(p.total_cost) as total_asked, w.budget_pool
 from public.wards w left join public.proposals p on p.ward_id = w.id

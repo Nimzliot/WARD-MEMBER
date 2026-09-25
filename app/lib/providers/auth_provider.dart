@@ -60,7 +60,8 @@ class AuthProvider extends ChangeNotifier {
     if (_loading) return AuthStage.loading;
     if (session == null) return AuthStage.signedOut;
     if (loadError != null || profile == null) return AuthStage.error;
-    if (!profile!.isComplete) return AuthStage.needsProfile;
+    // Super admins have no ward / Resident ID and only use the admin panel.
+    if (!profile!.isComplete && !profile!.isAdmin) return AuthStage.needsProfile;
     return AuthStage.ready;
   }
 

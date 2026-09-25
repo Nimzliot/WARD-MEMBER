@@ -51,7 +51,9 @@ GoRouter buildRouter(AuthProvider auth) => GoRouter(
           case AuthStage.needsProfile:
             return loc == '/profile-setup' ? null : '/profile-setup';
           case AuthStage.ready:
-            if (loc.startsWith('/admin') && !(auth.profile?.isAdmin ?? false)) return '/home';
+            // Super admin: admin panel only (analysis + management), never the resident app.
+            if (auth.profile?.isAdmin ?? false) return loc.startsWith('/admin') ? null : '/admin';
+            if (loc.startsWith('/admin')) return '/home';
             return _onboardingRoutes.contains(loc) ? '/home' : null;
         }
       },

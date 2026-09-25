@@ -91,7 +91,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: _ShortcutCard(
                         icon: Icons.volunteer_activism_rounded,
                         title: 'Ward Fund',
-                        subtitle: 'Chip in for projects',
+                        subtitle: 'Send money to your ward',
                         onTap: () => context.push('/funds'),
                       ),
                     ),

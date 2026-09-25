@@ -187,31 +187,23 @@ Future<void> buildChatFixture() async {
 }
 
 const fundsJson = {
-  'payments_enabled': true, 'test_mode': true, 'can_manage': true,
-  'campaigns': [
-    {
-      'id': 'c1', 'title': 'Benches & shade for Gandhi Maidan', 'status': 'active', 'goal': 150000, 'raised': 96500,
-      'backers': 58, 'my_total': 500,
-      'description': 'Twelve granite benches and four shade sails so elders can rest during the evening walk.',
-      'closes_at': '2026-10-26T18:29:00Z',
-      'recent': [
-        {'name': 'Padma Raman', 'amount': 500, 'paid_at': '2026-09-26T04:00:00Z'},
-        {'name': 'Anonymous', 'amount': 2000, 'paid_at': '2026-09-26T03:00:00Z'},
-        {'name': 'Karthik V.', 'amount': 250, 'paid_at': '2026-09-25T13:00:00Z'},
-      ],
-    },
-    {
-      'id': 'c2', 'title': 'Library books for the Govt. Primary School', 'status': 'active', 'goal': 60000, 'raised': 12400,
-      'backers': 17, 'my_total': 0, 'description': 'Tamil and English story books for Classes 1–5.', 'closes_at': null,
-      'recent': [],
-    },
+  'ward_name': 'Ward 1 – Gandhi Nagar', 'payments_enabled': true, 'test_mode': true,
+  'raised': 72400, 'payments': 64, 'supporters': 58, 'my_total': 500,
+  'levels': [10000, 50000, 100000, 500000, 1000000, 5000000],
+  'recent': [
+    {'name': 'Padma Raman', 'amount': 500, 'paid_at': '2026-09-26T04:00:00Z'},
+    {'name': 'Anonymous', 'amount': 2000, 'paid_at': '2026-09-26T03:00:00Z'},
+    {'name': 'Karthik V.', 'amount': 250, 'paid_at': '2026-09-25T13:00:00Z'},
+    {'name': 'Meena S.', 'amount': 1000, 'paid_at': '2026-09-25T12:00:00Z'},
+    {'name': 'Arun K.', 'amount': 100, 'paid_at': '2026-09-25T11:00:00Z'},
   ],
 };
 
 final contributionsJson = {
-  'campaigns': [
-    {'id': 'c1', 'ward_id': 1, 'title': 'Benches & shade for Gandhi Maidan', 'goal': 150000, 'status': 'active', 'raised': 96500, 'backers': 58},
-    {'id': 'c2', 'ward_id': 1, 'title': 'Library books for the Govt. Primary School', 'goal': 60000, 'status': 'active', 'raised': 12400, 'backers': 17},
+  'wards': [
+    {'ward_id': 1, 'raised': 72400, 'payments': 64, 'supporters': 58},
+    {'ward_id': 2, 'raised': 18500, 'payments': 21, 'supporters': 19},
+    {'ward_id': 3, 'raised': 41200, 'payments': 37, 'supporters': 30},
   ],
   'contributions': [
     for (final (i, (name, amt, st, anon)) in [
@@ -221,12 +213,20 @@ final contributionsJson = {
       ('Arun Kumar', 1000, 'paid', false),
     ].indexed)
       {
-        'id': 'k$i', 'campaign_id': 'c1', 'campaign_title': 'Benches & shade for Gandhi Maidan', 'ward_id': 1,
-        'name': name, 'amount': amt, 'status': st, 'anonymous': anon,
-        'razorpay_payment_id': st == 'paid' ? 'pay_Q8x2${i}aTEST' : null,
+        'id': 'k', 'ward_id': 1, 'name': name, 'amount': amt, 'status': st, 'anonymous': anon,
+        'razorpay_payment_id': st == 'paid' ? 'pay_Q8x2aTEST' : null,
         'created_at': DateTime(2026, 9, 26, 9 - i).toUtc().toIso8601String(),
         'paid_at': st == 'paid' ? DateTime(2026, 9, 26, 9 - i, 2).toUtc().toIso8601String() : null,
       },
+  ],
+};
+
+final overviewJson = {
+  'totals': {'wards': 3, 'residents': 231, 'ballots': 118, 'pending_ideas': 4, 'raised': 132100, 'budget': 18500000, 'ward_admins': 2},
+  'wards': [
+    {'id': 1, 'name': 'Ward 1 – Gandhi Nagar', 'phase': 'open', 'budget_pool': 7500000, 'ward_admin': 'Kavitha Selvam', 'residents': 96, 'ballots': 58, 'turnout': 0.6, 'approved': 4, 'pending_ideas': 1, 'raised': 72400, 'supporters': 58},
+    {'id': 2, 'name': 'Ward 2 – Lake View', 'phase': 'upcoming', 'budget_pool': 6000000, 'ward_admin': null, 'residents': 71, 'ballots': 0, 'turnout': 0.0, 'approved': 4, 'pending_ideas': 3, 'raised': 18500, 'supporters': 19},
+    {'id': 3, 'name': 'Ward 3 – Old Market', 'phase': 'closed', 'budget_pool': 5000000, 'ward_admin': 'Ravi Kumar', 'residents': 64, 'ballots': 60, 'turnout': 0.94, 'approved': 3, 'pending_ideas': 0, 'raised': 41200, 'supporters': 30},
   ],
 };
 
@@ -300,6 +300,7 @@ final apiMock = MockClient((req) async {
   if (p.startsWith('/api/audit/')) body = auditJson;
   if (p == '/api/votes/me') body = {'vote': null};
   if (p == '/api/funds') body = fundsJson;
+  if (p == '/api/admin/overview') body = overviewJson;
   if (p == '/api/ward-admin/overview') {
     body = {
       'ward': {'id': 1, 'name': 'Ward 1 – Gandhi Nagar', 'budget_pool': 7500000,

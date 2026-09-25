@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../models/proposal.dart';
@@ -112,14 +111,6 @@ class _WardAdminScreenState extends State<WardAdminScreen> with SingleTickerProv
             icon: const Icon(Icons.add),
             label: const Text('New proposal'),
           ),
-        3 => FloatingActionButton.extended(
-            onPressed: () async {
-              await context.push('/funds');
-              _load();
-            },
-            icon: const Icon(Icons.volunteer_activism_rounded),
-            label: const Text('Manage fundraisers'),
-          ),
         _ => null,
       },
       body: Column(children: [
@@ -214,7 +205,7 @@ class _WardAdminScreenState extends State<WardAdminScreen> with SingleTickerProv
       onRefresh: _load,
       child: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 32), children: [
         MessageBanner(
-          'You are the Ward Admin of ${ward.name}. You manage this ward\'s ideas, proposals, fundraisers and resident '
+          'You are the Ward Admin of ${ward.name}. You manage this ward\'s ideas, proposals, fund and resident '
           'messages. Budgets, voting dates and roles are set by the super admin.',
           isError: false,
         ),
@@ -232,7 +223,7 @@ class _WardAdminScreenState extends State<WardAdminScreen> with SingleTickerProv
           tile(Icons.list_alt_rounded, '${o['approved']}', 'on the ballot', onTap: () => _tabs.animateTo(2)),
         ]),
         Row(children: [
-          tile(Icons.volunteer_activism_rounded, inrCompact(o['raised'] as num), 'raised · ${o['active_funds']} active',
+          tile(Icons.volunteer_activism_rounded, inrCompact(o['raised'] as num), 'ward fund',
               onTap: () => _tabs.animateTo(3)),
           tile(Icons.forum_rounded, '${o['unread_messages']}', 'unread messages', onTap: () => _tabs.animateTo(4)),
         ]),

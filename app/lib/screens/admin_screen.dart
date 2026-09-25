@@ -45,7 +45,7 @@ class _AdminWard {
 }
 
 class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStateMixin {
-  late final TabController _tabs = TabController(length: 5, vsync: this);
+  late final TabController _tabs = TabController(length: 6, vsync: this);
   List<_AdminWard> _wards = [];
   List<Proposal> _proposals = [];
   bool _loading = true;
@@ -118,12 +118,12 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   Widget build(BuildContext context) {
     final pending = _proposals.where((p) => p.status == ProposalStatus.pending).toList();
     final fab = switch (_tabs.index) {
-      0 => FloatingActionButton.extended(
+      1 => FloatingActionButton.extended(
           onPressed: () => _editWard(null),
           icon: const Icon(Icons.add_location_alt_outlined),
           label: const Text('New ward'),
         ),
-      1 => FloatingActionButton.extended(
+      2 => FloatingActionButton.extended(
           onPressed: () => _openForm(ProposalFormMode.create),
           icon: const Icon(Icons.add),
           label: const Text('New proposal'),
@@ -135,11 +135,14 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       floatingActionButton: fab,
       body: Column(children: [
         BrandHeader(
-          showBack: true,
+          // The super admin's home: there is no resident app behind it.
+          showBack: false,
           title: 'Admin panel',
           subtitle: 'Super admin · every ward',
           bottomPadding: 0,
           actions: [
+            HeaderIconButton(icon: Icons.logout_rounded, tooltip: 'Sign out', onPressed: _signOut),
+            const SizedBox(width: 6),
             HeaderIconButton(
               icon: Icons.view_in_ar_rounded,
               tooltip: '3D ward map',
@@ -163,6 +166,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
             dividerColor: Colors.transparent,
             labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontFamily: 'Jakarta'),
             tabs: [
+              const Tab(text: 'Overview'),
               const Tab(text: 'Wards'),
               const Tab(text: 'Proposals'),
               Tab(
@@ -190,6 +194,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
               : _error != null
                   ? ErrorView(message: _error, error: _failure, onRetry: _load)
                   : TabBarView(controller: _tabs, children: [
+                      const _OverviewTab(),
                       _wardsTab(),
                       _proposalsTab(),
                       _ideasTab(pending),
@@ -325,12 +330,21 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     }
   }
 
-  /// One Ward Admin per ward: pick a resident who lives in this ward.
+  Future<void> _signOut() async {
+    final ok = await _confirm('Sign out?', 'You will need a one-time code to sign in again.', 'Sign out');
+    if (ok && mounted) await context.read<AuthProvider>().signOut();
+  }
+
+  /// One Ward Admin per ward: pick any resident (not a super admin).
   Future<void> _pickWardAdmin(_AdminWard aw) async {
     List<Map<String, dynamic>> people;
     try {
-      final r = await ApiService.get('/api/admin/users?wardId=${aw.ward.id}');
-      people = (r['users'] as List).cast<Map<String, dynamic>>().where((u) => u['full_name'] != null).toList();
+      final r = await ApiService.get('/api/admin/users');
+      people = (r['users'] as List)
+          .cast<Map<String, dynamic>>()
+          .where((u) => u['full_name'] != null && u['role'] != 'admin' && u['resident_id'] != null)
+          .toList()
+        ..sort((a, b) => (a['ward_id'] == aw.ward.id ? 0 : 1).compareTo(b['ward_id'] == aw.ward.id ? 0 : 1));
     } catch (e) {
       if (mounted) await showFailure(context, e);
       return;
@@ -359,7 +373,14 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(u['full_name'] as String, style: const TextStyle(fontWeight: FontWeight.w700)),
-                      Text(u['resident_id'] as String? ?? '', style: const TextStyle(fontSize: 12, color: AppColors.inkMuted)),
+                      Text(
+                        [
+                          _wardName(u['ward_id'] as int? ?? 0),
+                          u['resident_id'] as String? ?? '',
+                          if (u['ward_admin_of'] != null && u['ward_admin_of'] != aw.ward.id) 'Ward Admin elsewhere',
+                        ].join(' · '),
+                        style: const TextStyle(fontSize: 12, color: AppColors.inkMuted),
+                      ),
                     ]),
                   ),
                   if (u['full_name'] == aw.adminName) const Icon(Icons.check_rounded, color: AppColors.forest),
@@ -969,6 +990,185 @@ class _FundsTabState extends State<_FundsTab> with AutomaticKeepAliveClientMixin
         else
           ContributionsView(data: _data!, wardName: _wardName),
       ]),
+    );
+  }
+}
+
+// ============================== Overview (analysis) ==============================
+
+class _OverviewTab extends StatefulWidget {
+  const _OverviewTab();
+
+  @override
+  State<_OverviewTab> createState() => _OverviewTabState();
+}
+
+class _OverviewTabState extends State<_OverviewTab> with AutomaticKeepAliveClientMixin {
+  Map<String, dynamic>? _data;
+  Object? _error;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final d = await ApiService.get('/api/admin/overview');
+      if (mounted) {
+        setState(() {
+          _data = d;
+          _error = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _error = e);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    if (_error != null) return ErrorView(error: _error, onRetry: _load);
+    final d = _data;
+    if (d == null) return const Center(child: CircularProgressIndicator());
+    final t = d['totals'] as Map<String, dynamic>;
+    final wards = (d['wards'] as List).cast<Map<String, dynamic>>();
+
+    Widget kpi(IconData icon, String value, String label) => Expanded(
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Icon(icon, color: AppColors.forest, size: 22),
+                const SizedBox(height: 8),
+                Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.forestDark)),
+                Text(label, style: const TextStyle(fontSize: 12, color: AppColors.inkMuted)),
+              ]),
+            ),
+          ),
+        );
+
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 32), children: [
+        Row(children: [
+          kpi(Icons.location_city_rounded, '${t['wards']}', 'wards'),
+          kpi(Icons.people_alt_rounded, '${t['residents']}', 'residents'),
+          kpi(Icons.how_to_vote_rounded, '${t['ballots']}', 'ballots'),
+        ]),
+        Row(children: [
+          kpi(Icons.shield_rounded, '${t['ward_admins']}/${t['wards']}', 'Ward Admins'),
+          kpi(Icons.lightbulb_outline_rounded, '${t['pending_ideas']}', 'ideas waiting'),
+          kpi(Icons.volunteer_activism_rounded, inrCompact(t['raised'] as num), 'ward funds'),
+        ]),
+        const SizedBox(height: 14),
+        const SectionTitle('Turnout by ward'),
+        _BarCard(rows: [
+          for (final w in wards)
+            (label: _short(w['name'] as String), value: (w['turnout'] as num).toDouble(), text: '${((w['turnout'] as num) * 100).round()}%'),
+        ], max: 1),
+        const SizedBox(height: 14),
+        const SectionTitle('Ward funds raised'),
+        _BarCard(rows: [
+          for (final w in wards) (label: _short(w['name'] as String), value: (w['raised'] as num).toDouble(), text: inrCompact(w['raised'] as num)),
+        ]),
+        const SizedBox(height: 14),
+        const SectionTitle('Wards'),
+        for (final w in wards)
+          Card(
+            margin: const EdgeInsets.only(bottom: 10),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Expanded(child: Text(w['name'] as String, style: const TextStyle(fontWeight: FontWeight.w800))),
+                  _phaseChip(w['phase'] as String),
+                ]),
+                const SizedBox(height: 8),
+                Wrap(spacing: 14, runSpacing: 6, children: [
+                  _mini(Icons.shield_outlined, w['ward_admin'] as String? ?? 'No Ward Admin', warn: w['ward_admin'] == null),
+                  _mini(Icons.people_alt_outlined, '${w['residents']}'),
+                  _mini(Icons.how_to_vote_outlined, '${w['ballots']}'),
+                  _mini(Icons.list_alt_rounded, '${w['approved']}'),
+                  if ((w['pending_ideas'] as num) > 0) _mini(Icons.lightbulb_outline_rounded, '${w['pending_ideas']}', warn: true),
+                  _mini(Icons.account_balance_rounded, inrCompact(w['budget_pool'] as num)),
+                ]),
+              ]),
+            ),
+          ),
+      ]),
+    );
+  }
+
+  static String _short(String name) => name.split('–').first.trim();
+
+  Widget _mini(IconData icon, String text, {bool warn = false}) => Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 16, color: warn ? const Color(0xFFB27300) : AppColors.inkMuted),
+        const SizedBox(width: 4),
+        Text(text, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: warn ? const Color(0xFFB27300) : AppColors.ink)),
+      ]);
+
+  Widget _phaseChip(String phase) {
+    final (String label, Color color) = switch (phase) {
+      'upcoming' => ('Upcoming', const Color(0xFF8A5A00)),
+      'open' => ('Voting open', AppTheme.success),
+      _ => ('Closed', AppColors.inkMuted),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20)),
+      child: Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 11.5)),
+    );
+  }
+}
+
+/// Horizontal bars, one hue, value labels in ink (single series → no legend).
+class _BarCard extends StatelessWidget {
+  const _BarCard({required this.rows, this.max});
+
+  final List<({String label, double value, String text})> rows;
+  final double? max;
+
+  @override
+  Widget build(BuildContext context) {
+    final top = max ?? rows.fold<double>(0, (m, r) => r.value > m ? r.value : m);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(children: [
+          for (final r in rows)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(children: [
+                SizedBox(
+                  width: 64,
+                  child: Text(r.label, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
+                ),
+                Expanded(
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0, end: top == 0 ? 0 : (r.value / top).clamp(0.0, 1.0)),
+                    duration: const Duration(milliseconds: 900),
+                    curve: Curves.easeOutCubic,
+                    builder: (_, v, _) => ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(value: v, minHeight: 14, backgroundColor: AppColors.mint),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                SizedBox(
+                  width: 76,
+                  child: Text(r.text, maxLines: 1, softWrap: false, textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.forestDark)),
+                ),
+              ]),
+            ),
+        ]),
+      ),
     );
   }
 }

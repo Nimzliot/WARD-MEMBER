@@ -4,24 +4,24 @@ import '../theme.dart';
 import '../utils/format.dart';
 import 'common.dart';
 
-/// Fundraisers + every contribution (all statuses), for the Ward Admin
-/// (their ward) and the super admin (all wards, [wardName] shown).
+/// Ward Fund money: totals (per ward for the super admin) and every
+/// contribution with its status. Used by the Ward Admin console (their ward)
+/// and the super admin's Funds tab (all wards, [wardName] shown).
 class ContributionsView extends StatelessWidget {
-  const ContributionsView({super.key, required this.data, this.wardName, this.header});
+  const ContributionsView({super.key, required this.data, this.wardName});
 
-  final Map<String, dynamic> data; // { campaigns: [...], contributions: [...] }
+  final Map<String, dynamic> data; // { wards: [{ward_id, raised, payments, supporters}], contributions: [...] }
   final String Function(int wardId)? wardName;
-  final Widget? header;
 
   @override
   Widget build(BuildContext context) {
-    final campaigns = (data['campaigns'] as List? ?? const []).cast<Map<String, dynamic>>();
+    final wards = (data['wards'] as List? ?? const []).cast<Map<String, dynamic>>();
     final rows = (data['contributions'] as List? ?? const []).cast<Map<String, dynamic>>();
-    final paid = rows.where((r) => r['status'] == 'paid');
-    final raised = paid.fold<int>(0, (s, r) => s + (r['amount'] as num).toInt());
+    final raised = wards.fold<int>(0, (s, w) => s + (w['raised'] as num).toInt());
+    final payments = wards.fold<int>(0, (s, w) => s + (w['payments'] as num).toInt());
+    final top = wards.fold<int>(1, (m, w) => (w['raised'] as num).toInt() > m ? (w['raised'] as num).toInt() : m);
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      ?header,
       HeroCard(
         child: Row(children: [
           Expanded(
@@ -33,53 +33,53 @@ class ContributionsView extends StatelessWidget {
             ]),
           ),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text('${paid.length}', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
+            Text('$payments', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
             Text('payments', style: TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 12)),
           ]),
         ]),
       ),
-      const SizedBox(height: 18),
-      Text('Fundraisers (${campaigns.length})', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-      const SizedBox(height: 8),
-      if (campaigns.isEmpty)
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 12),
-          child: Text('No fundraisers yet.', style: TextStyle(color: AppColors.inkMuted)),
-        ),
-      for (final c in campaigns)
+      // Per-ward bars (super admin view)
+      if (wardName != null && wards.length > 1) ...[
+        const SizedBox(height: 16),
         Card(
-          margin: const EdgeInsets.only(bottom: 10),
           child: Padding(
             padding: const EdgeInsets.all(14),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Expanded(child: Text(c['title'] as String, style: const TextStyle(fontWeight: FontWeight.w800))),
-                _chip(c['status'] == 'active' ? 'Active' : 'Closed', c['status'] == 'active' ? AppTheme.success : AppColors.inkMuted),
-              ]),
-              if (wardName != null) ...[
-                const SizedBox(height: 2),
-                Text(wardName!(c['ward_id'] as int), style: const TextStyle(color: AppColors.inkMuted, fontSize: 12.5)),
-              ],
-              const SizedBox(height: 8),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(5),
-                child: LinearProgressIndicator(
-                  value: ((c['raised'] as num) / (c['goal'] as num)).clamp(0, 1).toDouble(),
-                  minHeight: 8,
-                  backgroundColor: AppColors.mint,
+            child: Column(children: [
+              for (final w in wards)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Row(children: [
+                    SizedBox(
+                      width: 70,
+                      child: Text(wardName!(w['ward_id'] as int),
+                          overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
+                    ),
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: (w['raised'] as num) / top,
+                          minHeight: 12,
+                          backgroundColor: AppColors.mint,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    SizedBox(
+                      width: 70,
+                      child: Text(inrCompact(w['raised'] as num),
+                          textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.forestDark)),
+                    ),
+                  ]),
                 ),
-              ),
-              const SizedBox(height: 6),
-              Text('${inr(c['raised'] as num)} of ${inr(c['goal'] as num)} · ${c['backers']} supporters',
-                  style: const TextStyle(fontSize: 12.5, color: AppColors.inkMuted)),
             ]),
           ),
         ),
-      const SizedBox(height: 10),
+      ],
+      const SizedBox(height: 16),
       Text('Contributions (${rows.length})', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
       const SizedBox(height: 8),
-      if (rows.isEmpty)
-        const Text('No contributions yet.', style: TextStyle(color: AppColors.inkMuted)),
+      if (rows.isEmpty) const Text('No contributions yet.', style: TextStyle(color: AppColors.inkMuted)),
       for (final r in rows)
         Card(
           margin: const EdgeInsets.only(bottom: 8),
@@ -98,7 +98,6 @@ class ContributionsView extends StatelessWidget {
             ]),
             subtitle: Text(
               [
-                r['campaign_title'],
                 if (wardName != null && r['ward_id'] != null) wardName!(r['ward_id'] as int),
                 _statusLabel(r['status'] as String),
                 if (r['razorpay_payment_id'] != null) r['razorpay_payment_id'],
@@ -111,12 +110,6 @@ class ContributionsView extends StatelessWidget {
         ),
     ]);
   }
-
-  static Widget _chip(String t, Color c) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(color: c.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20)),
-        child: Text(t, style: TextStyle(color: c, fontWeight: FontWeight.w800, fontSize: 11.5)),
-      );
 
   static Color _statusColor(String s) => switch (s) {
         'paid' => AppTheme.success,
