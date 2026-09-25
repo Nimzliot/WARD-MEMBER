@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 
 import 'providers/auth_provider.dart';
+import 'screens/admin_map_screen.dart';
 import 'screens/admin_screen.dart';
 import 'screens/app_shell.dart';
 import 'screens/assistant_screen.dart';
@@ -86,6 +87,7 @@ GoRouter buildRouter(AuthProvider auth) => GoRouter(
         GoRoute(path: '/admin', builder: (_, _) => const AdminScreen()),
         GoRoute(path: '/ideas', builder: (_, _) => const IdeasScreen()),
         GoRoute(path: '/admin/errors', builder: (_, _) => const ErrorGalleryScreen()),
+        GoRoute(path: '/admin/map', builder: (_, _) => const AdminMapScreen()),
         GoRoute(
           path: '/proposal/:id',
           builder: (_, state) => ProposalDetailScreen(proposalId: state.pathParameters['id']!),

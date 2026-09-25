@@ -36,7 +36,7 @@ Ward residents suggest projects, then back **every project they want funded** as
 | **Resident ideas** | Residents submit their own project ideas, with an AI-drafted ₹ breakdown if they want one. An admin approves the idea (it goes on the ballot), edits it, or rejects it with a note the resident can see. |
 | **Live results** | Supabase Realtime covers the votes bar chart, the fund-allocation donut and turnout. Admin changes (dates, approvals) also reach phones instantly. |
 | **Audit log** | The anonymised ballot chain. **Verify Integrity** makes the server recompute every hash. |
-| **Ward map** | **Map** tab (OpenStreetMap, no API key): every project on the ballot and every idea as a pin. Green means on the ballot, amber means an idea in review, grey means not approved, and a tick means it is on your ballot. Tap a pin to add it to your ballot or open it. Admins can switch to **all wards** to review ideas by place. Proposal pages show a mini-map, and the idea and proposal forms have a **Pick on map** location picker. |
+| **Ward map** | **Map** tab (OpenStreetMap, no API key): every project on the ballot and every idea as a pin. Green means on the ballot, amber means an idea in review, grey means not approved, and a tick means it is on your ballot. Tap a pin to add it to your ballot or open it. Admins get a separate **3D ward map** (Admin panel → 3D icon): a tilted map where every project is a 3D pillar (height = cost or votes, colour = status) with floating labels. Approve or edit ideas right from a pillar. Proposal pages show a mini-map, and the idea and proposal forms have a **Pick on map** location picker. |
 | **Error pages** | Every failure has its own page: offline, server waking up, session expired, access denied, not eligible, voting not open or closed, already voted, ballot over budget, **404**, too many tries, Ward Assistant resting, server error, and app crash (instead of Flutter's red screen). Each page has an illustration, a clear next step, automatic retry where it helps, and copyable technical details. The server sends an error `code` (e.g. `VOTING_CLOSED`) so the app picks the right page. Admins can preview them all under Admin panel → ⚠ **Error pages**. |
 | **Admin** | Full control: create, edit and delete wards, budget pools and voting windows (or open and close voting now); create, edit, unlist and delete proposals; review ideas; promote admins or move residents between wards; reset a ward's ballot box. |
 
@@ -125,6 +125,16 @@ flutter build apk --release --dart-define-from-file=config.json
 flutter build apk --release --split-per-abi --dart-define-from-file=config.json
 # → app-arm64-v8a-release.apk (~20 MB, fits almost every modern phone)
 ```
+
+## Web app (GitHub Pages)
+The same Flutter app runs in the browser. `.github/workflows/web.yml` builds it and publishes it on every push to `main`.
+
+1. Repo → **Settings → Pages** → Source: **GitHub Actions**.
+2. Repo → **Settings → Secrets and variables → Actions** → add `SUPABASE_URL`, `SUPABASE_ANON_KEY` (anon/publishable key only) and `API_BASE_URL` (your Render or ngrok HTTPS URL).
+3. **Actions → Deploy web app → Run workflow** (or push). The app appears at `https://<user>.github.io/<repo>/`.
+
+Local build: `cd app && flutter build web --release --dart-define-from-file=config.json --base-href /WARD-MEMBER/` → `app/build/web`.
+The API already allows cross-origin requests (`cors()`), including through ngrok.
 
 ## Deploy the API to Render
 1. Push this repo to GitHub.

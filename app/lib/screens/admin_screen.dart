@@ -138,6 +138,12 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
           bottomPadding: 0,
           actions: [
             HeaderIconButton(
+              icon: Icons.view_in_ar_rounded,
+              tooltip: '3D ward map',
+              onPressed: () => GoRouter.of(context).push('/admin/map'),
+            ),
+            const SizedBox(width: 6),
+            HeaderIconButton(
               icon: Icons.report_gmailerrorred_rounded,
               tooltip: 'Error pages',
               onPressed: () => GoRouter.of(context).push('/admin/errors'),

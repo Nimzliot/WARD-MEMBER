@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/proposal.dart';
 import '../providers/auth_provider.dart';
@@ -32,8 +31,6 @@ class MapScreen extends StatefulWidget {
 
 class _MapScreenState extends State<MapScreen> {
   _MapFilter _filter = _MapFilter.all;
-  bool _allWards = false; // admin only
-  List<Proposal>? _everything; // admin: all wards, all statuses
   String? _selectedId;
 
   @override
@@ -48,16 +45,7 @@ class _MapScreenState extends State<MapScreen> {
     if (widget.focusId != old.focusId && widget.focusId != null) setState(() => _selectedId = widget.focusId);
   }
 
-  Future<void> _loadAll() async {
-    final rows = await Supabase.instance.client
-        .from('proposals')
-        .select('*, budget_items(*)')
-        .order('created_at', ascending: true);
-    if (mounted) setState(() => _everything = [for (final r in rows) Proposal.fromMap(r)]);
-  }
-
-  List<Proposal> _source(WardProvider wp, bool isAdmin) {
-    if (isAdmin && _allWards) return _everything ?? const [];
+  List<Proposal> _source(WardProvider wp) {
     final byId = <String, Proposal>{for (final p in wp.proposals) p.id: p};
     for (final i in wp.myIdeas) {
       byId.putIfAbsent(i.id, () => i);
@@ -75,7 +63,7 @@ class _MapScreenState extends State<MapScreen> {
   Widget build(BuildContext context) {
     final wp = context.watch<WardProvider>();
     final isAdmin = context.watch<AuthProvider>().profile?.isAdmin ?? false;
-    final all = _source(wp, isAdmin).where(_passes).toList();
+    final all = _source(wp).where(_passes).toList();
     final pinned = all.where((p) => p.hasLocation).toList();
     final unpinned = all.length - pinned.length;
     final selected = pinned.where((p) => p.id == _selectedId).firstOrNull;
@@ -89,20 +77,14 @@ class _MapScreenState extends State<MapScreen> {
       body: Column(children: [
         BrandHeader(
           title: 'Ward map',
-          subtitle: isAdmin && _allWards ? 'All wards · ${pinned.length} pins' : '${wp.ward?.name ?? ''} · ${pinned.length} pins',
+          subtitle: '${wp.ward?.name ?? ''} · ${pinned.length} pins',
           bottomPadding: 14,
           actions: [
             if (isAdmin)
               HeaderIconButton(
-                icon: _allWards ? Icons.location_city_rounded : Icons.public_rounded,
-                tooltip: _allWards ? 'My ward only' : 'All wards',
-                onPressed: () {
-                  setState(() {
-                    _allWards = !_allWards;
-                    _selectedId = null;
-                  });
-                  if (_allWards && _everything == null) _loadAll();
-                },
+                icon: Icons.view_in_ar_rounded,
+                tooltip: '3D map of all wards',
+                onPressed: () => context.push('/admin/map'),
               ),
           ],
           child: SingleChildScrollView(
@@ -132,8 +114,9 @@ class _MapScreenState extends State<MapScreen> {
           child: Stack(children: [
             FlutterMap(
               // Rebuild (and re-fit) when the set of pins changes.
-              key: ValueKey('${_filter.name}-$_allWards-${pinned.length}-${wp.ward?.id}'),
+              key: ValueKey('${_filter.name}-${pinned.length}-${wp.ward?.id}'),
               options: MapOptions(
+                backgroundColor: kMapBackground,
                 initialCenter: center,
                 initialZoom: 14.5,
                 initialCameraFit: selected == null && points.length > 1
@@ -158,8 +141,7 @@ class _MapScreenState extends State<MapScreen> {
               ],
             ),
             Positioned(left: 12, top: 12, right: 12, child: Align(alignment: Alignment.topLeft, child: MapLegend(showRejected: isAdmin))),
-            if (isAdmin && _allWards && _everything == null) const Center(child: CircularProgressIndicator()),
-            if (all.isEmpty && !(isAdmin && _allWards && _everything == null))
+            if (all.isEmpty)
               const Center(
                 child: Card(
                   child: Padding(
@@ -179,7 +161,7 @@ class _MapScreenState extends State<MapScreen> {
                   child: FadeTransition(opacity: a, child: c),
                 ),
                 child: selected != null
-                    ? _PinCard(key: ValueKey(selected.id), proposal: selected, isAdmin: isAdmin, onChanged: _loadAllIfNeeded)
+                    ? _PinCard(key: ValueKey(selected.id), proposal: selected, isAdmin: isAdmin, onChanged: wp.load)
                     : unpinned > 0
                         ? _NoteCard(
                             key: const ValueKey('note'),
@@ -193,10 +175,6 @@ class _MapScreenState extends State<MapScreen> {
         ),
       ]),
     );
-  }
-
-  void _loadAllIfNeeded() {
-    if (_allWards) _loadAll();
   }
 }
 

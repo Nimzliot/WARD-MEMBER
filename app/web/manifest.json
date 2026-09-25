@@ -1,0 +1,35 @@
+{
+    "name": "Makkal Budget",
+    "short_name": "Makkal Budget",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#06402A",
+    "theme_color": "#0B5D3B",
+    "description": "Participatory ward budgeting: suggest projects, vote within the budget, follow results live. SDG 11 prototype, not an official Government of Tamil Nadu service.",
+    "orientation": "portrait-primary",
+    "prefer_related_applications": false,
+    "icons": [
+        {
+            "src": "icons/Icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-maskable-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "icons/Icon-maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
+}

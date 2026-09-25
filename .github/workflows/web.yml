@@ -1,0 +1,82 @@
+# Builds the Flutter web app and publishes it to GitHub Pages on every push to main.
+#
+# One-time setup (repo → Settings):
+#   1. Pages → Build and deployment → Source: "GitHub Actions"
+#   2. Secrets and variables → Actions → New repository secret, add:
+#        SUPABASE_URL       https://<project>.supabase.co
+#        SUPABASE_ANON_KEY  the anon / publishable key (never the service_role key)
+#        API_BASE_URL       your Node API over HTTPS (Render URL or ngrok URL)
+# The app is then live at https://<user>.github.io/<repo>/
+name: Deploy web app
+
+on:
+  push:
+    branches: [main]
+    paths: ['app/**', '.github/workflows/web.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.1
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Check secrets are set
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+        run: |
+          for v in SUPABASE_URL SUPABASE_ANON_KEY API_BASE_URL; do
+            if [ -z "${!v}" ]; then echo "::error::Repository secret $v is not set (Settings → Secrets and variables → Actions)"; exit 1; fi
+          done
+
+      - name: Write config.json from secrets
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+        run: |
+          jq -n --arg u "$SUPABASE_URL" --arg k "$SUPABASE_ANON_KEY" --arg a "$API_BASE_URL" \
+            '{SUPABASE_URL: $u, SUPABASE_ANON_KEY: $k, API_BASE_URL: $a}' > config.json
+
+      - name: Build
+        run: |
+          flutter build web --release --dart-define-from-file=config.json \
+            --base-href "/${{ github.event.repository.name }}/"
+          cp build/web/index.html build/web/404.html   # deep links fall back to the app
+          rm config.json
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: app/build/web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

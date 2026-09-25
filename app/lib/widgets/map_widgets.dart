@@ -19,20 +19,35 @@ LatLng? proposalPoint(Proposal p) => p.hasLocation ? LatLng(p.lat!, p.lng!) : nu
 /// Off in offline screenshot tests (no network there).
 bool mapTilesEnabled = true;
 
-/// OpenStreetMap tiles (no API key). Attribution is required by the OSM tile policy.
+/// Soft green tint so the basemap matches the app (keeps street labels readable).
+const _greenTint = ColorFilter.matrix(<double>[
+  0.86, 0.06, 0.02, 0, 4, //
+  0.04, 0.94, 0.04, 0, 10,
+  0.02, 0.06, 0.84, 0, 2,
+  0, 0, 0, 1, 0,
+]);
+
+/// Basemap: CARTO Voyager (OpenStreetMap data, clean labels, no API key),
+/// tinted green. Attribution to OSM + CARTO is shown by [osmAttribution].
 List<Widget> osmLayers() => [
       if (mapTilesEnabled)
-      TileLayer(
-        urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-        userAgentPackageName: 'app.makkalbudget',
-        maxZoom: 19,
-      ),
+        TileLayer(
+          urlTemplate: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+          subdomains: const ['a', 'b', 'c', 'd'],
+          retinaMode: true,
+          userAgentPackageName: 'app.makkalbudget',
+          maxZoom: 20,
+          tileBuilder: (context, tile, _) => ColorFiltered(colorFilter: _greenTint, child: tile),
+        ),
     ];
 
 const osmAttribution = SimpleAttributionWidget(
-  source: Text('OpenStreetMap contributors'),
+  source: Text('OpenStreetMap contributors · CARTO'),
   backgroundColor: Color(0xCCFFFFFF),
 );
+
+/// Map background while tiles load (mint instead of grey).
+const kMapBackground = Color(0xFFE6F0EA);
 
 /// Pin colour by review status.
 Color pinColor(Proposal p) => switch (p.status) {
@@ -114,20 +129,65 @@ class _PinPainter extends CustomPainter {
   bool shouldRepaint(_PinPainter old) => old.color != color || old.ring != ring;
 }
 
-/// Marker for a proposal (anchored at the pin's tip).
-Marker proposalMarker(Proposal p, {bool selected = false, bool onBallot = false, VoidCallback? onTap}) => Marker(
-      point: proposalPoint(p)!,
-      width: ProposalPin.size.width + 12,
-      height: ProposalPin.size.height + 12,
-      alignment: Alignment.topCenter,
-      child: GestureDetector(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(6),
-          child: ProposalPin(proposal: p, selected: selected, onBallot: onBallot),
+/// Marker for a proposal: pin whose tip sits on the point, name label under it.
+Marker proposalMarker(Proposal p, {bool selected = false, bool onBallot = false, bool label = true, VoidCallback? onTap}) {
+  const pinBox = 68.0; // pin (56) + padding
+  return Marker(
+    point: proposalPoint(p)!,
+    width: 150,
+    height: pinBox * 2,
+    alignment: Alignment.center, // top half = pin (tip on the point), bottom half = label
+    child: GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.deferToChild,
+      child: Column(children: [
+        SizedBox(
+          height: pinBox,
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: ProposalPin(proposal: p, selected: selected, onBallot: onBallot),
+          ),
         ),
-      ),
-    );
+        if (label) ...[
+          const SizedBox(height: 4),
+          _PinLabel(text: p.title, selected: selected, color: pinColor(p)),
+        ],
+      ]),
+    ),
+  );
+}
+
+/// Small name tag under a pin.
+class _PinLabel extends StatelessWidget {
+  const _PinLabel({required this.text, required this.selected, required this.color});
+
+  final String text;
+  final bool selected;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        constraints: const BoxConstraints(maxWidth: 140),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: selected ? color : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: selected ? Colors.white : color.withValues(alpha: 0.35)),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 6, offset: const Offset(0, 2))],
+        ),
+        child: Text(
+          text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w800,
+            color: selected ? Colors.white : AppColors.forestDark,
+          ),
+        ),
+      );
+}
 
 /// Small, non-interactive map with one pin (proposal detail). Tap → [onOpen].
 class MiniMap extends StatelessWidget {
@@ -144,6 +204,7 @@ class MiniMap extends StatelessWidget {
           child: Stack(children: [
             FlutterMap(
               options: MapOptions(
+                backgroundColor: kMapBackground,
                 initialCenter: proposalPoint(proposal)!,
                 initialZoom: 15.5,
                 interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
@@ -151,7 +212,7 @@ class MiniMap extends StatelessWidget {
               ),
               children: [
                 ...osmLayers(),
-                MarkerLayer(markers: [proposalMarker(proposal, onTap: onOpen)]),
+                MarkerLayer(markers: [proposalMarker(proposal, label: false, onTap: onOpen)]),
                 osmAttribution,
               ],
             ),
@@ -204,6 +265,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
         body: Stack(children: [
           FlutterMap(
             options: MapOptions(
+              backgroundColor: kMapBackground,
               initialCenter: widget.initial,
               initialZoom: 16,
               interactionOptions: const InteractionOptions(flags: InteractiveFlag.all & ~InteractiveFlag.rotate),

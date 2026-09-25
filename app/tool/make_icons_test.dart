@@ -13,6 +13,12 @@ import 'package:ward_budget/widgets/app_logo.dart';
 const _res = 'android/app/src/main/res';
 const _densities = {'mdpi': 1.0, 'hdpi': 1.5, 'xhdpi': 2.0, 'xxhdpi': 3.0, 'xxxhdpi': 4.0};
 
+const _bg = LinearGradient(
+  begin: Alignment.topLeft,
+  end: Alignment.bottomRight,
+  colors: [AppColors.forest, AppColors.forestDark],
+);
+
 final _logo = AppLogoPainter(color: Colors.white, accent: AppColors.leaf, background: AppColors.forest);
 
 Future<void> _write(String path, int px, void Function(Canvas c, double s) draw) async {
@@ -56,5 +62,25 @@ void main() {
       final fg = (108 * e.value).round();
       await _write('$_res/mipmap-${e.key}/ic_launcher_foreground.png', fg, (c, s) => _logoAt(c, s, 0.54));
     }
+
+    // Web: favicon + install icons (rounded) + maskable (full-bleed, logo in the safe zone)
+    void rounded(Canvas c, double s) {
+      c.drawRRect(
+        RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, s, s), Radius.circular(s * 0.22)),
+        Paint()..shader = _bg.createShader(Rect.fromLTWH(0, 0, s, s)),
+      );
+      _logoAt(c, s, 0.7);
+    }
+
+    void fullBleed(Canvas c, double s) {
+      c.drawRect(Rect.fromLTWH(0, 0, s, s), Paint()..shader = _bg.createShader(Rect.fromLTWH(0, 0, s, s)));
+      _logoAt(c, s, 0.56);
+    }
+
+    await _write('web/favicon.png', 64, rounded);
+    await _write('web/icons/Icon-192.png', 192, rounded);
+    await _write('web/icons/Icon-512.png', 512, rounded);
+    await _write('web/icons/Icon-maskable-192.png', 192, fullBleed);
+    await _write('web/icons/Icon-maskable-512.png', 512, fullBleed);
   });
 }

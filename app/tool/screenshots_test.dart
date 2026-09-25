@@ -33,6 +33,7 @@ import 'package:ward_budget/screens/home_screen.dart';
 import 'package:ward_budget/screens/ideas_screen.dart';
 import 'package:ward_budget/screens/login_screen.dart';
 import 'package:ward_budget/screens/map_screen.dart';
+import 'package:ward_budget/screens/admin_map_screen.dart';
 import 'package:ward_budget/widgets/map_widgets.dart';
 import 'package:ward_budget/screens/phone_otp_screen.dart';
 import 'package:ward_budget/screens/profile_screen.dart';
@@ -362,6 +363,12 @@ void main() {
       }));
   testWidgets('18 map', (t) => shot(t, '18_map', app(const MapScreen(), tab: 1)));
   testWidgets('18b map selected', (t) => shot(t, '18b_map_selected', app(const MapScreen(focusId: 'p1'), tab: 1)));
+  testWidgets('19 admin 3D map', (t) => shot(t, '19_admin_map', app(const AdminMapScreen())));
+  testWidgets('19b admin 3D map selected', (t) => shot(t, '19b_admin_map_selected', app(const AdminMapScreen()),
+      before: (t) async {
+        await t.tap(find.text('Solar LED Street Lights').first);
+        await settle(t);
+      }));
   testWidgets('09 results', (t) => shot(t, '09_results', app(const ResultsScreen(), tab: 2)));
   testWidgets('10 results scrolled', (t) => shot(t, '10_results_scrolled', app(const ResultsScreen(), tab: 2),
       before: (t) async {
