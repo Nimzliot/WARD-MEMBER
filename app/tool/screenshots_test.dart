@@ -31,6 +31,7 @@ import 'package:ward_budget/screens/chat_screen.dart';
 import 'package:ward_budget/screens/chat_summary_screen.dart';
 import 'package:ward_budget/screens/funds_screen.dart';
 import 'package:ward_budget/screens/inbox_screen.dart';
+import 'package:ward_budget/screens/ward_admin_screen.dart';
 import 'package:ward_budget/services/chat_crypto.dart';
 import 'package:ward_budget/services/chat_service.dart';
 import 'package:ward_budget/screens/app_shell.dart';
@@ -206,6 +207,28 @@ const fundsJson = {
   ],
 };
 
+final contributionsJson = {
+  'campaigns': [
+    {'id': 'c1', 'ward_id': 1, 'title': 'Benches & shade for Gandhi Maidan', 'goal': 150000, 'status': 'active', 'raised': 96500, 'backers': 58},
+    {'id': 'c2', 'ward_id': 1, 'title': 'Library books for the Govt. Primary School', 'goal': 60000, 'status': 'active', 'raised': 12400, 'backers': 17},
+  ],
+  'contributions': [
+    for (final (i, (name, amt, st, anon)) in [
+      ('Padma Raman', 500, 'paid', false),
+      ('Karthik Venkat', 2000, 'paid', true),
+      ('Meena Sundar', 250, 'created', false),
+      ('Arun Kumar', 1000, 'paid', false),
+    ].indexed)
+      {
+        'id': 'k$i', 'campaign_id': 'c1', 'campaign_title': 'Benches & shade for Gandhi Maidan', 'ward_id': 1,
+        'name': name, 'amount': amt, 'status': st, 'anonymous': anon,
+        'razorpay_payment_id': st == 'paid' ? 'pay_Q8x2${i}aTEST' : null,
+        'created_at': DateTime(2026, 9, 26, 9 - i).toUtc().toIso8601String(),
+        'paid_at': st == 'paid' ? DateTime(2026, 9, 26, 9 - i, 2).toUtc().toIso8601String() : null,
+      },
+  ],
+};
+
 const chatSummaryJson = {
   'headline': 'Streetlights and drainage lead resident concerns',
   'overview': 'Residents mainly reported a dark stretch near the 4th Lane bus stop and water stagnation near the market. '
@@ -276,6 +299,16 @@ final apiMock = MockClient((req) async {
   if (p.startsWith('/api/audit/')) body = auditJson;
   if (p == '/api/votes/me') body = {'vote': null};
   if (p == '/api/funds') body = fundsJson;
+  if (p == '/api/ward-admin/overview') {
+    body = {
+      'ward': {'id': 1, 'name': 'Ward 1 – Gandhi Nagar', 'budget_pool': 7500000,
+        'voting_opens_at': DateTime.now().subtract(const Duration(days: 4)).toUtc().toIso8601String(),
+        'voting_closes_at': DateTime.now().add(const Duration(days: 3)).toUtc().toIso8601String(), 'admin_user_id': 'u1'},
+      'approved': 4, 'pending_ideas': 1, 'ballots': 40, 'residents': 96, 'active_funds': 2, 'raised': 108900, 'unread_messages': 3,
+    };
+  }
+  if (p == '/api/ward-admin/proposals') body = {'proposals': [for (final x in [...myIdeas, ...proposals]) proposalJson(x)]};
+  if (p == '/api/ward-admin/contributions' || p == '/api/admin/funds') body = contributionsJson;
   if (p == '/api/chat/peer') {
     body = {
       'is_ward_admin': false, 'ward_name': 'Ward 1 – Gandhi Nagar',
@@ -511,6 +544,17 @@ void main() {
           ChatMessage(id: '1', senderId: 'r1', text: 'Streetlight near 4th Lane is off.', createdAt: DateTime(2026, 9, 25), readAt: null, mine: false),
         ]),
       ]))));
+  testWidgets('34 ward admin console', (t) => shot(t, '34_ward_admin', app(const WardAdminScreen())));
+  testWidgets('35 ward admin fund', (t) => shot(t, '35_ward_admin_fund', app(const WardAdminScreen()), before: (t) async {
+        await t.tap(find.text('Fund'));
+        await settle(t);
+      }));
+  testWidgets('36 super admin funds', (t) => shot(t, '36_admin_funds', app(const AdminScreen()), before: (t) async {
+        await t.ensureVisible(find.text('Funds'));
+        await t.pumpAndSettle();
+        await t.tap(find.text('Funds'));
+        await settle(t);
+      }));
   testWidgets('15 receipt', (t) => shot(t, '15_receipt', app(Scaffold(
         body: VoteReceiptSheet(
           justVoted: true,

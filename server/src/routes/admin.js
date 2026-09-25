@@ -213,6 +213,16 @@ router.delete('/proposals/:id', async (req, res) => {
   });
 });
 
+// ========================= Funds (all wards) =========================
+
+// GET /api/admin/funds?wardId= → every fundraiser + every contribution (super admin view)
+router.get('/funds', async (req, res) => {
+  const wardIds = req.query.wardId
+    ? [Number(req.query.wardId)]
+    : must(await supabase.from('wards').select('id')).map((w) => w.id);
+  res.json(await require('./ward_admin').contributionsFor(wardIds));
+});
+
 // ========================= Users =========================
 
 // GET /api/admin/users?wardId=1&q=padma → residents (max 200), with whether they voted

@@ -31,10 +31,13 @@ enum ProposalFormMode {
 /// One form for resident ideas and admin proposals, with the AI draft helper.
 /// Pops with `true` when something was saved.
 class ProposalFormScreen extends StatefulWidget {
-  const ProposalFormScreen({super.key, required this.mode, this.proposal});
+  const ProposalFormScreen({super.key, required this.mode, this.proposal, this.asWardAdmin = false});
 
   final ProposalFormMode mode;
   final Proposal? proposal; // required for edit
+
+  /// Ward Admin console: own ward only (no ward picker), uses /api/ward-admin.
+  final bool asWardAdmin;
 
   @override
   State<ProposalFormScreen> createState() => _ProposalFormScreenState();
@@ -72,6 +75,7 @@ class _ProposalFormScreenState extends State<ProposalFormScreen> {
   String? _draftError;
 
   bool get _isIdea => widget.mode == ProposalFormMode.idea;
+  String get _api => widget.asWardAdmin ? '/api/ward-admin' : '/api/admin';
   bool get _isEdit => widget.mode == ProposalFormMode.edit;
   bool get _isPendingIdea => _isEdit && widget.proposal!.status == ProposalStatus.pending;
 
@@ -196,12 +200,12 @@ class _ProposalFormScreenState extends State<ProposalFormScreen> {
           await wp.submitIdeaBody(_body);
           message = 'Idea sent to the ward office for review';
         case ProposalFormMode.create:
-          final res = await ApiService.post('/api/admin/proposals', {'wardId': _wardId, ..._body});
+          final res = await ApiService.post('$_api/proposals', {if (!widget.asWardAdmin) 'wardId': _wardId, ..._body});
           final p = res['proposal'] as Map<String, dynamic>;
           message = 'Published "${p['title']}" · ${inr(p['total_cost'] as num)}';
         case ProposalFormMode.edit:
-          await ApiService.patch('/api/admin/proposals/${widget.proposal!.id}', {
-            'wardId': _wardId,
+          await ApiService.patch('$_api/proposals/${widget.proposal!.id}', {
+            if (!widget.asWardAdmin) 'wardId': _wardId,
             ..._body,
             if (approve) 'status': 'approved',
           });
@@ -252,10 +256,12 @@ class _ProposalFormScreenState extends State<ProposalFormScreen> {
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
                     children: [
-                      if (_isIdea)
+                      if (_isIdea || widget.asWardAdmin)
                         MessageBanner(
-                          'For ${ward?.name ?? 'your ward'}. If approved, it goes on the ballot and '
-                          'residents can vote for it.',
+                          _isIdea
+                              ? 'For ${ward?.name ?? 'your ward'}. If approved, it goes on the ballot and '
+                                  'residents can vote for it.'
+                              : 'For ${ward?.name ?? 'your ward'} (Ward Admin). Changes go live for residents instantly.',
                           isError: false,
                         )
                       else

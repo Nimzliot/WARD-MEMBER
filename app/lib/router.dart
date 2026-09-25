@@ -22,6 +22,7 @@ import 'screens/profile_setup_screen.dart';
 import 'screens/proposal_detail_screen.dart';
 import 'screens/results_screen.dart';
 import 'screens/splash_screen.dart';
+import 'screens/ward_admin_screen.dart';
 import 'utils/failure.dart';
 import 'widgets/failure_view.dart';
 
@@ -92,6 +93,7 @@ GoRouter buildRouter(AuthProvider auth) => GoRouter(
         GoRoute(path: '/funds', builder: (_, _) => const FundsScreen()),
         GoRoute(path: '/chat', builder: (_, _) => const ChatScreen()),
         GoRoute(path: '/inbox', builder: (_, _) => const InboxScreen()),
+        GoRoute(path: '/ward-admin', builder: (_, _) => const WardAdminScreen()),
         GoRoute(path: '/admin/errors', builder: (_, _) => const ErrorGalleryScreen()),
         GoRoute(path: '/admin/map', builder: (_, _) => const AdminMapScreen()),
         GoRoute(

@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
+import '../providers/ward_provider.dart';
 import '../utils/format.dart';
 import '../theme.dart';
 import '../widgets/brand.dart';
@@ -31,6 +32,7 @@ class ProfileScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final p = auth.profile;
+    final isWardAdmin = context.watch<WardProvider>().isWardAdmin;
     final theme = Theme.of(context);
     if (p == null) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
@@ -55,8 +57,9 @@ class ProfileScreen extends StatelessWidget {
                     Wrap(spacing: 6, runSpacing: 6, children: [
                       _HeaderChip(
                         icon: p.isAdmin ? Icons.admin_panel_settings : Icons.home_outlined,
-                        text: p.isAdmin ? 'Admin' : 'Resident',
+                        text: p.isAdmin ? 'Super admin' : 'Resident',
                       ),
+                      if (isWardAdmin) const _HeaderChip(icon: Icons.shield_rounded, text: 'Ward Admin'),
                       if (p.wardName != null) _HeaderChip(icon: Icons.location_city, text: p.wardName!),
                     ]),
                   ]),
@@ -126,13 +129,25 @@ class ProfileScreen extends StatelessWidget {
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                               Text('Admin panel',
                                   style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
-                              Text('Create proposals · draft with AI',
+                              Text('Super admin · every ward, funds, roles',
                                   style: TextStyle(color: Colors.white70, fontSize: 12.5)),
                             ]),
                           ),
                           const Icon(Icons.arrow_forward_rounded, color: Colors.white),
                         ]),
                       ),
+                    ),
+                  ),
+                ],
+                if (isWardAdmin) ...[
+                  const SizedBox(height: 12),
+                  Card(
+                    child: ListTile(
+                      onTap: () => context.push('/ward-admin'),
+                      leading: const Icon(Icons.shield_rounded, color: AppColors.forest),
+                      title: const Text('Ward Admin console', style: TextStyle(fontWeight: FontWeight.w800)),
+                      subtitle: const Text('Your ward: ideas, proposals, fund, messages'),
+                      trailing: const Icon(Icons.chevron_right),
                     ),
                   ),
                 ],

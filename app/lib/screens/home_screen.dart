@@ -73,6 +73,15 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (wp.isWardAdmin) ...[
+                    _ShortcutCard(
+                      icon: Icons.shield_rounded,
+                      title: 'Ward Admin console',
+                      subtitle: 'Ideas, proposals, fund & messages for your ward',
+                      onTap: () => context.push('/ward-admin'),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   if (wp.ward != null) PhaseCard(ward: wp.ward!),
                   const SizedBox(height: 12),
                   _IdeasCard(pending: wp.pendingIdeas, total: wp.myIdeas.length, closed: wp.ward?.isClosed ?? false),

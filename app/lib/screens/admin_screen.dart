@@ -15,6 +15,7 @@ import '../utils/errors.dart';
 import '../utils/format.dart';
 import '../widgets/brand.dart';
 import '../widgets/common.dart';
+import '../widgets/contributions_view.dart';
 import '../widgets/failure_view.dart';
 import 'proposal_form_screen.dart';
 
@@ -44,7 +45,7 @@ class _AdminWard {
 }
 
 class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStateMixin {
-  late final TabController _tabs = TabController(length: 4, vsync: this);
+  late final TabController _tabs = TabController(length: 5, vsync: this);
   List<_AdminWard> _wards = [];
   List<Proposal> _proposals = [];
   bool _loading = true;
@@ -136,7 +137,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         BrandHeader(
           showBack: true,
           title: 'Admin panel',
-          subtitle: 'Wards, proposals, ideas and people',
+          subtitle: 'Super admin · every ward',
           bottomPadding: 0,
           actions: [
             HeaderIconButton(
@@ -179,6 +180,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                 ]),
               ),
               const Tab(text: 'People'),
+              const Tab(text: 'Funds'),
             ],
           ),
         ),
@@ -192,6 +194,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                       _proposalsTab(),
                       _ideasTab(pending),
                       _PeopleTab(wards: [for (final w in _wards) w.ward], onChanged: _load),
+                      _FundsTab(wards: [for (final w in _wards) w.ward]),
                     ]),
         ),
       ]),
@@ -878,6 +881,94 @@ class _PeopleTabState extends State<_PeopleTab> with AutomaticKeepAliveClientMix
               ),
         ],
       ),
+    );
+  }
+}
+
+// ============================== Funds (all wards) ==============================
+
+class _FundsTab extends StatefulWidget {
+  const _FundsTab({required this.wards});
+
+  final List<Ward> wards;
+
+  @override
+  State<_FundsTab> createState() => _FundsTabState();
+}
+
+class _FundsTabState extends State<_FundsTab> with AutomaticKeepAliveClientMixin {
+  int? _ward; // null = all wards
+  Map<String, dynamic>? _data;
+  Object? _error;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final d = await ApiService.get('/api/admin/funds${_ward == null ? '' : '?wardId=$_ward'}');
+      if (mounted) {
+        setState(() {
+          _data = d;
+          _error = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _error = e);
+    }
+  }
+
+  String _wardName(int id) =>
+      widget.wards.where((w) => w.id == id).firstOrNull?.name.split('–').first.trim() ?? 'Ward $id';
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 32), children: [
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(children: [
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ChoiceChip(
+                label: const Text('All wards'),
+                selected: _ward == null,
+                onSelected: (_) {
+                  setState(() => _ward = null);
+                  _load();
+                },
+              ),
+            ),
+            for (final w in widget.wards)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: ChoiceChip(
+                  label: Text(_wardName(w.id)),
+                  selected: _ward == w.id,
+                  onSelected: (_) {
+                    setState(() => _ward = w.id);
+                    _load();
+                  },
+                ),
+              ),
+          ]),
+        ),
+        const SizedBox(height: 14),
+        if (_error != null)
+          SizedBox(height: 480, child: ErrorView(error: _error, onRetry: _load))
+        else if (_data == null)
+          const Padding(padding: EdgeInsets.all(48), child: Center(child: CircularProgressIndicator()))
+        else
+          ContributionsView(data: _data!, wardName: _wardName),
+      ]),
     );
   }
 }

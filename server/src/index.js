@@ -29,6 +29,7 @@ app.use('/api/audit', require('./routes/audit'));
 app.use('/api/ideas', require('./routes/ideas'));
 app.use('/api/funds', funds.router);
 app.use('/api/chat', require('./routes/chat'));
+app.use('/api/ward-admin', require('./routes/ward_admin').router);
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/ai', require('./routes/ai'));
 
