@@ -28,6 +28,7 @@ import 'package:ward_budget/providers/live_results.dart';
 import 'package:ward_budget/providers/ward_provider.dart';
 import 'package:ward_budget/screens/admin_screen.dart';
 import 'package:ward_budget/screens/chat_screen.dart';
+import 'package:ward_budget/screens/contact_verify_screen.dart';
 import 'package:ward_budget/screens/chat_summary_screen.dart';
 import 'package:ward_budget/screens/funds_screen.dart';
 import 'package:ward_budget/screens/inbox_screen.dart';
@@ -472,6 +473,7 @@ void main() {
   testWidgets('03b phone otp', (t) => shot(t, '03b_phone_otp',
       app(const PhoneOtpScreen(), stage: AuthStage.signedOut, phone: '9876543210')));
   testWidgets('04 profile setup', (t) => shot(t, '04_profile_setup', app(const ProfileSetupScreen(), stage: AuthStage.needsProfile)));
+  testWidgets('04b verify other contact', (t) => shot(t, '04b_verify_contact', app(const ContactVerifyScreen(), stage: AuthStage.needsContact)));
   testWidgets('05 home', (t) => shot(t, '05_home', app(const HomeScreen(), tab: 0, wp: fakeWard(myBallot: null))));
   testWidgets('05b home building ballot', (t) => shot(t, '05b_home_ballot',
       app(const HomeScreen(), tab: 0, wp: fakeWard(myBallot: null, picks: {'p1', 'p3'})), before: (t) async {

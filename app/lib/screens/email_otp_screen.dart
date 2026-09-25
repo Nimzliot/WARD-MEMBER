@@ -73,7 +73,7 @@ class _EmailOtpScreenState extends State<EmailOtpScreen> {
           children: [
             OnboardingHeader(
               step: 1,
-              total: 2,
+              total: 3,
               icon: Icons.mark_email_read_outlined,
               title: 'Check your email',
               subtitle: TextSpan(

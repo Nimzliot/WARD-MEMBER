@@ -492,6 +492,19 @@ class _ContributeSheetState extends State<ContributeSheet> with WidgetsBindingOb
             ],
           ]),
         ),
+        const SizedBox(height: 12),
+        Row(children: [
+          const Icon(Icons.mark_email_read_outlined, size: 18, color: AppColors.forest),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _result!.receiptEmail != null
+                  ? 'Receipt emailed to ${_result!.receiptEmail}'
+                  : 'A receipt is on its way to your verified email.',
+              style: const TextStyle(color: AppColors.forestDark, fontSize: 13),
+            ),
+          ),
+        ]),
         const SizedBox(height: 16),
         PrimaryButton(label: 'Done', onPressed: () => Navigator.pop(context, true)),
       ]);

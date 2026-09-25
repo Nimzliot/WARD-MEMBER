@@ -7,6 +7,7 @@ import 'screens/admin_screen.dart';
 import 'screens/app_shell.dart';
 import 'screens/assistant_screen.dart';
 import 'screens/audit_screen.dart';
+import 'screens/contact_verify_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/email_otp_screen.dart';
 import 'screens/error_gallery_screen.dart';
@@ -26,7 +27,7 @@ import 'screens/ward_admin_screen.dart';
 import 'utils/failure.dart';
 import 'widgets/failure_view.dart';
 
-const _onboardingRoutes = {'/splash', '/login', '/email-otp', '/phone-otp', '/profile-setup'};
+const _onboardingRoutes = {'/splash', '/login', '/email-otp', '/phone-otp', '/profile-setup', '/verify-contact'};
 
 /// Route guard: signed out → login (+ the chosen OTP screen); verified but
 /// profile incomplete → profile setup; otherwise the app.
@@ -45,6 +46,8 @@ GoRouter buildRouter(AuthProvider auth) => GoRouter(
             if (loc == '/email-otp' && auth.pendingEmail != null) return null;
             if (loc == '/phone-otp' && auth.pendingPhone != null) return null;
             return '/login';
+          case AuthStage.needsContact:
+            return loc == '/verify-contact' ? null : '/verify-contact';
           case AuthStage.needsProfile:
             return loc == '/profile-setup' ? null : '/profile-setup';
           case AuthStage.ready:
@@ -62,6 +65,7 @@ GoRouter buildRouter(AuthProvider auth) => GoRouter(
         GoRoute(path: '/email-otp', builder: (_, _) => const EmailOtpScreen()),
         GoRoute(path: '/phone-otp', builder: (_, _) => const PhoneOtpScreen()),
         GoRoute(path: '/profile-setup', builder: (_, _) => const ProfileSetupScreen()),
+        GoRoute(path: '/verify-contact', builder: (_, _) => const ContactVerifyScreen()),
         // Main tabs (bottom navigation)
         StatefulShellRoute.indexedStack(
           builder: (_, _, shell) => AppShell(shell: shell),

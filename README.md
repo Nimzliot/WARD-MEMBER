@@ -28,7 +28,7 @@ Ward residents suggest projects, then back **every project they want funded** as
 ## Features
 | Area | What it does |
 |---|---|
-| **Login** | The resident picks **one** method: a 6-digit **email code** (Supabase Auth) or an **SMS code** (Fast2SMS via the Node server). Codes are stored only as SHA-256 hashes, expire after 5 minutes, allow 3 attempts, and can be resent after 60 s. |
+| **Login** | Every resident has **both a verified email and a verified mobile**. They sign in with **whichever they choose** by one-time code (email via Supabase Auth, SMS via Fast2SMS). After profile setup, step 3 adds and verifies the other contact, and from then on either one signs in to the same account. Codes are stored only as SHA-256 hashes, expire after 5 minutes, allow 3 attempts, can be resent after 60 s and are limited to 5 per hour. An email or number belongs to one account only. |
 | **Profile** | Full name, ward (1 of 3), **Resident ID** (simulated verification, one account per ID). |
 | **Proposals** | Ward budget pool vs. total requested, category filters, and a detailed budget breakdown in ₹. |
 | **Voting window** | Each ward has an opening and a closing time. Home shows a live countdown. Before the window opens the phase is *Upcoming*, and after it closes the results are **final**. The server enforces the window, not only the app. |
@@ -39,6 +39,7 @@ Ward residents suggest projects, then back **every project they want funded** as
 | **Ward map** | **Map** tab (OpenStreetMap, no API key): every project on the ballot and every idea as a pin. Green means on the ballot, amber means an idea in review, grey means not approved, and a tick means it is on your ballot. Tap a pin to add it to your ballot or open it. Admins get a separate **3D ward map** (Admin panel → 3D icon): a tilted map where every project is a 3D pillar (height = cost or votes, colour = status) with floating labels. Approve or edit ideas right from a pillar. Proposal pages show a mini-map, and the idea and proposal forms have a **Pick on map** location picker. |
 | **Two admin levels** | **Super admin** (`profiles.role = admin`): total control of every ward in the **Admin panel**: wards, budgets, voting dates, proposals, ideas, people/roles, ballots, and a **Funds** tab with every ward's fundraisers and contributions. They assign exactly **one Ward Admin per ward** (Wards → ⋮ Set Ward Admin). **Ward Admin**: limited to their own ward in the **Ward Admin console** (Home → Ward Admin console): Overview, Ideas review, Proposals, Fund (fundraisers + contributions) and encrypted resident Messages. They can't change budgets, voting dates or roles. |
 | **Ward Fund (Razorpay)** | The Ward Admin starts fundraisers (goal, end date). Residents contribute through **Razorpay Payment Links in test mode**, which work in the Android app and on the web. A payment counts only after the server confirms it with Razorpay (signed callback + status check). Residents can give anonymously and get a receipt. Test UPI `success@razorpay` or card `4111 1111 1111 1111`. |
+| **Emailed receipts** | When Razorpay confirms a payment, the server emails the contributor a branded receipt (amount, fundraiser, ward, Razorpay payment ID, receipt number), sent once and only to their verified email. Needs SMTP settings (see Server setup). |
 | **Secure chat (E2E)** | Residents message their Ward Admin with **end-to-end encryption**: X25519 key pair per phone (private key in Android Keystore via secure storage), HKDF-SHA256 conversation keys, AES-256-GCM per message. The server stores only ciphertext. Chat has live updates, read ticks and a 12-digit **safety code** to verify keys. |
 | **AI chat summary + PDF** | The Ward Admin taps **Summarize** (one chat or the whole inbox). Their phone decrypts the chats and sends the text to Gemini once (not stored), then the admin edits the summary (issues, requests, urgent, mood, follow-ups) and **downloads a PDF**, optionally with transcripts. Residents are told this can happen. |
 | **Error pages** | Every failure has its own page: offline, server waking up, session expired, access denied, not eligible, voting not open or closed, already voted, ballot over budget, **404**, too many tries, Ward Assistant resting, server error, and app crash (instead of Flutter's red screen). Each page has an illustration, a clear next step, automatic retry where it helps, and copyable technical details. The server sends an error `code` (e.g. `VOTING_CLOSED`) so the app picks the right page. Admins can preview them all under Admin panel → ⚠ **Error pages**. |
@@ -85,7 +86,7 @@ The database enforces `UNIQUE(user_id, ward_id)` (one ballot per resident) and `
 ### 1. Supabase
 1. Create a project (region: Mumbai).
 2. **SQL Editor**: run `database/schema.sql`. The last result should show 3 wards with 4, 4 and 3 proposals.
-   - Upgrading an existing database instead? Run `database/migrations/001_single_verification.sql`, `002_phases_ideas_ballots.sql`, then `003_locations.sql` (map pins; sample wards are placed in Chennai), then `004_ward_admin_funds_chat.sql` (Ward Admin, fundraising, encrypted chat).
+   - Upgrading an existing database instead? Run `database/migrations/001_single_verification.sql`, `002_phases_ideas_ballots.sql`, then `003_locations.sql` (map pins; sample wards are placed in Chennai), `004_ward_admin_funds_chat.sql` (Ward Admin, fundraising, encrypted chat), then `005_contacts_receipts.sql` (verified email + mobile, emailed receipts).
 3. Switch email login to a 6-digit code instead of a magic link. Either:
    - **Manually:** Authentication → Emails → Templates. In **Magic Link** *and* **Confirm signup**, put `{{ .Token }}` in the body, and set Email OTP Length = 6. Details are in [docs/SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md).
    - **Or by script:** `SUPABASE_ACCESS_TOKEN=sbp_... node server/scripts/setup-email-otp.js`
@@ -106,6 +107,7 @@ npm run dev             # http://localhost:3000/api/health
 | `VOTE_SALT` | A long random string: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. Don't change it after votes exist. |
 | `DEV_MODE` | `true` prints SMS codes in the terminal (no SMS credits used). `false` sends real SMS. |
 | `PORT` | `3000` |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `MAIL_FROM` | Email for verification codes and receipts, e.g. Gmail `smtp.gmail.com`, port `587`, your address, and a 16-letter **App Password**. With `DEV_MODE=true` and no SMTP, emails print to the console. |
 | `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | Razorpay **test** keys (Dashboard → Test Mode → Settings → API Keys). Without them, fundraising shows "payments not set up". |
 
 ### 3. App

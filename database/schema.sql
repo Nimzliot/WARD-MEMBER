@@ -12,6 +12,7 @@ create extension if not exists pgcrypto;
 -- 0. Clean slate
 -- ---------------------------------------------------------------------
 drop trigger if exists on_auth_user_created on auth.users;
+drop table if exists public.contact_otps  cascade;
 drop table if exists public.chat_messages cascade;
 drop table if exists public.chat_threads  cascade;
 drop table if exists public.contributions cascade;
@@ -492,6 +493,30 @@ do $ begin alter publication supabase_realtime add table public.contributions;
 exception when duplicate_object then null; end $;
 do $ begin alter publication supabase_realtime add table public.campaigns;
 exception when duplicate_object then null; end $;
+
+-- ---------------------------------------------------------------------
+-- 8. Verified email + mobile, emailed receipts (same as migration 005)
+-- ---------------------------------------------------------------------
+-- One-time codes for adding the second contact (email or mobile) to an
+-- account. Only SHA-256 hashes are stored. Written only by the Node server.
+create table if not exists public.contact_otps (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null references auth.users(id) on delete cascade,
+  channel    text not null check (channel in ('email', 'phone')),
+  target     text not null,              -- the email address or 10-digit mobile being verified
+  otp_hash   text not null,
+  expires_at timestamptz not null,
+  attempts   int  not null default 0,
+  created_at timestamptz not null default now()
+);
+create index if not exists contact_otps_user_idx on public.contact_otps (user_id, channel, created_at desc);
+alter table public.contact_otps enable row level security;
+revoke all on public.contact_otps from anon, authenticated;
+
+-- Payment receipts are emailed once per contribution.
+alter table public.contributions
+  add column if not exists receipt_sent_at timestamptz,
+  add column if not exists receipt_email   text;
 
 -- Quick check (should show 3 wards with 4/4/3 proposals):
 select w.name, count(p.id) as proposals, sum(p.total_cost) as total_asked, w.budget_pool

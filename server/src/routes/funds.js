@@ -6,6 +6,8 @@ const { supabase, must } = require('../supabase');
 const razorpay = require('../lib/razorpay');
 const { managesWard } = require('../lib/wardAdmin');
 const { UUID_RE } = require('../lib/proposals');
+const mailer = require('../lib/mailer');
+const { isRealEmail } = require('./contact');
 
 const router = express.Router();
 const MIN_AMOUNT = 10;
@@ -15,6 +17,42 @@ const baseUrl = (req) => `${req.protocol}://${req.get('host')}`;
 
 async function campaignFor(id) {
   return must(await supabase.from('campaigns').select('*').eq('id', id).maybeSingle());
+}
+
+// Emails the payment receipt once, to the contributor's VERIFIED email.
+// The row is claimed first (receipt_sent_at) so two confirmations can't send twice;
+// a failed send releases the claim so the next status check retries.
+async function sendReceiptOnce(c) {
+  if (c.status !== 'paid' || c.receipt_sent_at || !c.user_id) return;
+  const { data: claimed, error } = await supabase.from('contributions')
+    .update({ receipt_sent_at: new Date().toISOString() })
+    .eq('id', c.id).is('receipt_sent_at', null).select('*').maybeSingle();
+  if (error || !claimed) return; // already sent, or migration 005 not run yet
+  try {
+    const { data: u } = await supabase.auth.admin.getUserById(c.user_id);
+    const email = u?.user?.email;
+    if (!isRealEmail(email) || !u.user.email_confirmed_at) return; // no verified email: nothing to send to
+    const [campaign, profile] = await Promise.all([
+      supabase.from('campaigns').select('title, ward_id').eq('id', c.campaign_id).single().then(must),
+      supabase.from('profiles').select('full_name').eq('id', c.user_id).single().then(must),
+    ]);
+    const ward = must(await supabase.from('wards').select('name').eq('id', campaign.ward_id).single());
+    await mailer.sendReceipt(email, {
+      name: profile.full_name || 'Resident',
+      amount: c.amount,
+      campaign: campaign.title,
+      ward: ward.name,
+      paymentId: c.razorpay_payment_id || '—',
+      paidAt: c.paid_at || new Date().toISOString(),
+      receiptNo: 'MB-' + c.id.slice(0, 8).toUpperCase(),
+      anonymous: c.anonymous,
+      testMode: razorpay.isTestMode(),
+    });
+    await supabase.from('contributions').update({ receipt_email: email }).eq('id', c.id);
+  } catch (e) {
+    console.error('Receipt email failed:', e.message);
+    await supabase.from('contributions').update({ receipt_sent_at: null }).eq('id', c.id);
+  }
 }
 
 // Marks a pending contribution paid/expired by asking Razorpay directly.
@@ -29,7 +67,9 @@ async function refreshFromRazorpay(c) {
     update = { status: 'expired' };
   }
   if (!update) return c;
-  return must(await supabase.from('contributions').update(update).eq('id', c.id).eq('status', 'created').select('*').maybeSingle()) ?? c;
+  const updated = must(await supabase.from('contributions').update(update).eq('id', c.id).eq('status', 'created').select('*').maybeSingle()) ?? c;
+  sendReceiptOnce(updated).catch((e) => console.error('Receipt:', e.message));
+  return updated;
 }
 
 // ---------------------------------------------------------------------------
@@ -213,6 +253,10 @@ router.get('/contributions/:id', async (req, res) => {
     fresh = await refreshFromRazorpay(c);
   } catch (e) {
     console.error('Razorpay status check failed:', e.message);
+  }
+  if (fresh.status === 'paid' && !fresh.receipt_sent_at) {
+    await sendReceiptOnce(fresh).catch((e) => console.error('Receipt:', e.message)); // retry a failed send
+    fresh = must(await supabase.from('contributions').select('*').eq('id', fresh.id).single());
   }
   res.json({ contribution: fresh });
 });

@@ -32,5 +32,15 @@ services:
         sync: false          # Razorpay TEST key id (rzp_test_...)
       - key: RAZORPAY_KEY_SECRET
         sync: false
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false          # the Gmail address that sends codes + receipts
+      - key: SMTP_PASS
+        sync: false          # Gmail App Password (16 letters), not your normal password
+      - key: MAIL_FROM
+        sync: false
       - key: DEV_MODE
         value: "false"

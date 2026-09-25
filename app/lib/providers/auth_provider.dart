@@ -10,7 +10,8 @@ import '../services/api_service.dart';
 import '../utils/errors.dart';
 
 /// Where the user is in onboarding. The router redirects based on this.
-enum AuthStage { loading, error, signedOut, needsProfile, ready }
+/// needsContact = profile done, but the second contact (email or mobile) isn't verified yet.
+enum AuthStage { loading, error, signedOut, needsProfile, needsContact, ready }
 
 /// How the user chose to verify themselves on the login screen.
 enum LoginMethod { email, phone }
@@ -59,7 +60,26 @@ class AuthProvider extends ChangeNotifier {
     if (session == null) return AuthStage.signedOut;
     if (loadError != null || profile == null) return AuthStage.error;
     if (!profile!.isComplete) return AuthStage.needsProfile;
+    if (!hasVerifiedEmail || !hasVerifiedPhone) return AuthStage.needsContact;
     return AuthStage.ready;
+  }
+
+  /// Every resident has BOTH a verified email and a verified mobile; they sign in
+  /// with whichever they choose. (Phone-only accounts start with a placeholder email.)
+  bool get hasVerifiedEmail {
+    final e = user?.email;
+    return e != null && !e.endsWith('@${Profile.phoneEmailDomain}') && user?.emailConfirmedAt != null;
+  }
+
+  bool get hasVerifiedPhone => (profile?.phoneVerified ?? false) && profile?.phone != null;
+
+  /// After the server verified a new contact: pick up the new email (fresh
+  /// session) and profile, so the router moves on.
+  Future<void> contactVerified() async {
+    try {
+      await _sb.auth.refreshSession();
+    } catch (_) {/* the profile reload below still moves things on */}
+    await loadProfile();
   }
 
   /// Loads (or refreshes) the signed-in user's profile. Only the first load shows

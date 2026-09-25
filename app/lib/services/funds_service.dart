@@ -58,12 +58,14 @@ class Contribution {
         amount = (m['amount'] as num).toInt(),
         status = m['status'] as String,
         paymentId = m['razorpay_payment_id'] as String?,
+        receiptEmail = m['receipt_email'] as String?,
         paidAt = m['paid_at'] == null ? null : DateTime.parse(m['paid_at'] as String).toLocal();
 
   final String id;
   final int amount;
   final String status; // created | paid | failed | expired
   final String? paymentId;
+  final String? receiptEmail; // set once the emailed receipt has gone out
   final DateTime? paidAt;
 
   bool get isPaid => status == 'paid';
