@@ -5,9 +5,14 @@ import '../theme.dart';
 import 'civic.dart';
 
 /// The app's signature header: a deep-green gradient block with rounded bottom
-/// corners and soft rings. Every main screen starts with one, so the whole app
-/// reads as one green-and-white product.
-class BrandHeader extends StatelessWidget {
+/// corners, a kolam texture and the tricolour strip. Every main screen starts
+/// with one, so the whole app reads as one product.
+///
+/// Entrance animation: the strip draws out from the centre, the kolam drifts in,
+/// the title slides in and the content rises. It replays whenever the header's
+/// tab becomes visible again (go_router mutes tickers of hidden tabs via
+/// TickerMode, so a false→true flip means "this tab was just switched to").
+class BrandHeader extends StatefulWidget {
   const BrandHeader({
     super.key,
     this.title,
@@ -28,8 +33,46 @@ class BrandHeader extends StatelessWidget {
   final double bottomPadding;
 
   @override
+  State<BrandHeader> createState() => _BrandHeaderState();
+}
+
+class _BrandHeaderState extends State<BrandHeader> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 750));
+  bool? _visible;
+
+  Animation<double> _seg(double a, double b, [Curve curve = Curves.easeOutCubic]) =>
+      CurvedAnimation(parent: _c, curve: Interval(a, b, curve: curve));
+
+  late final _strip = _seg(0.0, 0.55);
+  late final _kolam = _seg(0.0, 0.9, Curves.easeOut);
+  late final _authority = _seg(0.05, 0.45);
+  late final _title = _seg(0.1, 0.6);
+  late final _content = _seg(0.3, 1.0);
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible = TickerMode.valuesOf(context).enabled;
+    if (visible && _visible != true) {
+      if (MediaQuery.disableAnimationsOf(context)) {
+        _c.value = 1;
+      } else {
+        _c.forward(from: 0);
+      }
+    }
+    _visible = visible;
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final showBack = widget.showBack;
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light, // white status-bar icons on green
       child: Container(
@@ -41,88 +84,123 @@ class BrandHeader extends StatelessWidget {
         ),
         child: Stack(
           children: [
-            // Kolam texture, fading out towards the left so text stays crisp
+            // Kolam texture, fading out towards the left so text stays crisp; drifts in
             Positioned.fill(
-              child: ShaderMask(
-                shaderCallback: (r) => const LinearGradient(
-                  colors: [Colors.transparent, Colors.white],
-                  stops: [0.25, 1],
-                ).createShader(r),
-                blendMode: BlendMode.dstIn,
-                child: CustomPaint(painter: KolamPatternPainter()),
+              child: FadeTransition(
+                opacity: _kolam,
+                child: SlideTransition(
+                  position: Tween(begin: const Offset(0.08, 0), end: Offset.zero).animate(_kolam),
+                  child: ShaderMask(
+                    shaderCallback: (r) => const LinearGradient(
+                      colors: [Colors.transparent, Colors.white],
+                      stops: [0.25, 1],
+                    ).createShader(r),
+                    blendMode: BlendMode.dstIn,
+                    child: CustomPaint(painter: KolamPatternPainter()),
+                  ),
+                ),
               ),
             ),
             SafeArea(
               bottom: false,
               child: Padding(
-                padding: EdgeInsets.fromLTRB(showBack ? 8 : 20, 4, 12, bottomPadding),
+                padding: EdgeInsets.fromLTRB(showBack ? 8 : 20, 4, 12, widget.bottomPadding),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Portal-style authority line
-                    Padding(
-                      padding: EdgeInsets.only(left: showBack ? 12 : 0, top: 6),
-                      child: Row(children: [
-                        const KolamMark(size: 16, color: AppColors.leaf),
-                        const SizedBox(width: 7),
-                        Flexible(
-                          child: Text(
-                            kAuthorityLine,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.72),
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 1.2,
+                    FadeTransition(
+                      opacity: _authority,
+                      child: Padding(
+                        padding: EdgeInsets.only(left: showBack ? 12 : 0, top: 6),
+                        child: Row(children: [
+                          const KolamMark(size: 16, color: AppColors.leaf),
+                          const SizedBox(width: 7),
+                          Flexible(
+                            child: Text(
+                              kAuthorityLine,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.72),
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.2,
+                              ),
                             ),
                           ),
-                        ),
-                      ]),
+                        ]),
+                      ),
                     ),
-                    SizedBox(
-                      height: 52,
-                      child: Row(children: [
-                        if (showBack)
-                          IconButton(
-                            onPressed: () => Navigator.maybePop(context),
-                            icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
-                          ),
-                        if (leading != null) ...[leading!, const SizedBox(width: 12)],
-                        Expanded(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (title != null)
-                                Text(title!,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: theme.textTheme.titleLarge?.copyWith(
-                                        color: Colors.white, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
-                              if (subtitle != null)
-                                Text(subtitle!,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: theme.textTheme.bodySmall
-                                        ?.copyWith(color: Colors.white.withValues(alpha: 0.75))),
-                            ],
+                    FadeTransition(
+                      opacity: _title,
+                      child: SlideTransition(
+                        position: Tween(begin: const Offset(-0.05, 0), end: Offset.zero).animate(_title),
+                        child: SizedBox(
+                          height: 52,
+                          child: Row(children: [
+                            if (showBack)
+                              IconButton(
+                                onPressed: () => Navigator.maybePop(context),
+                                icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+                              ),
+                            if (widget.leading != null) ...[widget.leading!, const SizedBox(width: 12)],
+                            Expanded(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (widget.title != null)
+                                    Text(widget.title!,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: theme.textTheme.titleLarge?.copyWith(
+                                            color: Colors.white, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+                                  if (widget.subtitle != null)
+                                    Text(widget.subtitle!,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: theme.textTheme.bodySmall
+                                            ?.copyWith(color: Colors.white.withValues(alpha: 0.75))),
+                                ],
+                              ),
+                            ),
+                            ...widget.actions,
+                          ]),
+                        ),
+                      ),
+                    ),
+                    if (widget.child != null)
+                      FadeTransition(
+                        opacity: _content,
+                        child: SlideTransition(
+                          position: Tween(begin: const Offset(0, 0.08), end: Offset.zero).animate(_content),
+                          child: Padding(
+                            padding: EdgeInsets.only(left: showBack ? 12 : 0, right: 8, top: 14),
+                            child: DefaultTextStyle.merge(
+                                style: const TextStyle(color: Colors.white), child: widget.child!),
                           ),
                         ),
-                        ...actions,
-                      ]),
-                    ),
-                    if (child != null)
-                      Padding(
-                        padding: EdgeInsets.only(left: showBack ? 12 : 0, right: 8, top: 14),
-                        child: DefaultTextStyle.merge(style: const TextStyle(color: Colors.white), child: child!),
                       ),
                   ],
                 ),
               ),
             ),
-            // Tricolour strip along the very top edge (under the status bar)
-            Positioned(left: 0, right: 0, top: MediaQuery.paddingOf(context).top, child: const TricolourStrip(height: 3)),
+            // Tricolour strip along the top edge (under the status bar), drawn out from the centre
+            Positioned(
+              left: 0,
+              right: 0,
+              top: MediaQuery.paddingOf(context).top,
+              child: AnimatedBuilder(
+                animation: _strip,
+                builder: (_, child) => Transform(
+                  alignment: Alignment.center,
+                  transform: Matrix4.diagonal3Values(_strip.value, 1, 1),
+                  child: child,
+                ),
+                child: const TricolourStrip(height: 3),
+              ),
+            ),
           ],
         ),
       ),
