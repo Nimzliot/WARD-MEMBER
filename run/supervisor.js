@@ -1,4 +1,4 @@
-// Keeps the Makkal Budget API + ngrok tunnel running in the background (no
+// Keeps the Nam Nagaram API + ngrok tunnel running in the background (no
 // windows to close by accident). Restarts either one if it stops, health-checks
 // the API every 30 s, and writes logs to run/logs/.
 //   Start: start-servers.bat   Stop: stop-servers.bat

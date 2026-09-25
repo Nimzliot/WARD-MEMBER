@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Nam Nagaram adaptive icon background: white behind the round logo -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-    <gradient android:angle="315" android:startColor="#0B5D3B" android:endColor="#06402A" />
+    <solid android:color="#FFFFFF" />
 </shape>

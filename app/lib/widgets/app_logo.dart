@@ -2,35 +2,46 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../theme.dart';
 
 /// App name, used on the intro, login and headers.
-const kAppName = 'Makkal Budget';
+const kAppName = 'Nam Nagaram';
 
-/// Makkal Budget mark: a temple-style arched gateway (thoranam) over a ballot
-/// box, with a vote going in and three kolam dots in the arch.
-/// Original artwork — deliberately not the Tamil Nadu state emblem.
+const kLogoAsset = 'assets/brand/logo.png';
+
+/// The Nam Nagaram logo (city, people and a vote held in a green hand).
 class AppLogo extends StatelessWidget {
-  const AppLogo({
-    super.key,
-    this.size = 56,
-    this.color = AppColors.forest,
-    this.accent = AppColors.emerald,
-    this.background = Colors.white,
-  });
+  const AppLogo({super.key, this.size = 56});
 
   final double size;
-  final Color color; // arch + ballot box
-  final Color accent; // vote card + kolam dots
-  final Color background; // the ballot-box slot is cut out in this colour
 
   @override
-  Widget build(BuildContext context) => CustomPaint(
-        size: Size.square(size),
-        painter: AppLogoPainter(color: color, accent: accent, background: background),
+  Widget build(BuildContext context) => Image.asset(
+        kLogoAsset,
+        width: size,
+        height: size,
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.medium,
+        semanticLabel: kAppName,
       );
 }
 
+/// Round white badge with the logo, for the green headers.
+class LogoBadge extends StatelessWidget {
+  const LogoBadge({super.key, this.size = 22});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: size,
+        height: size,
+        padding: EdgeInsets.all(size * 0.06),
+        decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+        child: ClipOval(child: AppLogo(size: size)),
+      );
+}
+
+/// Previous drawn mark (temple gateway over a ballot box); kept for reference.
 class AppLogoPainter extends CustomPainter {
   AppLogoPainter({required this.color, required this.accent, required this.background});
 

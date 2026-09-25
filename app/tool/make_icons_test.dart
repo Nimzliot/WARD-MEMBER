@@ -1,25 +1,16 @@
-// Generates the Android launcher icons from AppLogoPainter.
+// Generates the Android launcher icons and web icons from the Nam Nagaram logo
+// (assets/brand/logo.png).
 //   cd app && flutter test tool/make_icons_test.dart
-// Writes mipmap-*/ic_launcher.png (legacy, rounded square) and
-// mipmap-*/ic_launcher_foreground.png (adaptive icon foreground).
 import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ward_budget/theme.dart';
-import 'package:ward_budget/widgets/app_logo.dart';
 
 const _res = 'android/app/src/main/res';
 const _densities = {'mdpi': 1.0, 'hdpi': 1.5, 'xhdpi': 2.0, 'xxhdpi': 3.0, 'xxxhdpi': 4.0};
 
-const _bg = LinearGradient(
-  begin: Alignment.topLeft,
-  end: Alignment.bottomRight,
-  colors: [AppColors.forest, AppColors.forestDark],
-);
-
-final _logo = AppLogoPainter(color: Colors.white, accent: AppColors.leaf, background: AppColors.forest);
+late ui.Image _logo;
 
 Future<void> _write(String path, int px, void Function(Canvas c, double s) draw) async {
   final rec = ui.PictureRecorder();
@@ -32,49 +23,45 @@ Future<void> _write(String path, int px, void Function(Canvas c, double s) draw)
     ..writeAsBytesSync(bytes!.buffer.asUint8List());
 }
 
+/// Draws the logo centred at [scale] of the canvas (its own white background blends in).
 void _logoAt(Canvas c, double s, double scale) {
   final side = s * scale;
-  c.save();
-  c.translate((s - side) / 2, (s - side) / 2);
-  _logo.paint(c, Size.square(side));
-  c.restore();
+  final dst = Rect.fromCenter(center: Offset(s / 2, s / 2), width: side, height: side);
+  c.drawImageRect(
+    _logo,
+    Rect.fromLTWH(0, 0, _logo.width.toDouble(), _logo.height.toDouble()),
+    dst,
+    Paint()..filterQuality = FilterQuality.high,
+  );
 }
 
+void _whiteRounded(Canvas c, double s) =>
+    c.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, s, s), Radius.circular(s * 0.22)), Paint()..color = Colors.white);
+
 void main() {
-  test('launcher icons', () async {
+  test('launcher + web icons', () async {
+    final codec = await ui.instantiateImageCodec(File('assets/brand/logo.png').readAsBytesSync());
+    _logo = (await codec.getNextFrame()).image;
+
     for (final e in _densities.entries) {
-      // Legacy: green rounded square, logo filling ~70%
-      final legacy = (48 * e.value).round();
-      await _write('$_res/mipmap-${e.key}/ic_launcher.png', legacy, (c, s) {
-        final r = RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, s, s), Radius.circular(s * 0.22));
-        c.drawRRect(
-          r,
-          Paint()
-            ..shader = const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [AppColors.forest, AppColors.forestDark],
-            ).createShader(Rect.fromLTWH(0, 0, s, s)),
-        );
-        _logoAt(c, s, 0.7);
+      // Legacy: white rounded square with the round logo
+      await _write('$_res/mipmap-${e.key}/ic_launcher.png', (48 * e.value).round(), (c, s) {
+        _whiteRounded(c, s);
+        _logoAt(c, s, 0.92);
       });
-      // Adaptive foreground: 108dp canvas, logo inside the 66dp safe zone
-      final fg = (108 * e.value).round();
-      await _write('$_res/mipmap-${e.key}/ic_launcher_foreground.png', fg, (c, s) => _logoAt(c, s, 0.54));
+      // Adaptive foreground: 108dp canvas, logo inside the 66dp safe zone (background is white)
+      await _write('$_res/mipmap-${e.key}/ic_launcher_foreground.png', (108 * e.value).round(),
+          (c, s) => _logoAt(c, s, 0.66));
     }
 
-    // Web: favicon + install icons (rounded) + maskable (full-bleed, logo in the safe zone)
     void rounded(Canvas c, double s) {
-      c.drawRRect(
-        RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, s, s), Radius.circular(s * 0.22)),
-        Paint()..shader = _bg.createShader(Rect.fromLTWH(0, 0, s, s)),
-      );
-      _logoAt(c, s, 0.7);
+      _whiteRounded(c, s);
+      _logoAt(c, s, 0.92);
     }
 
     void fullBleed(Canvas c, double s) {
-      c.drawRect(Rect.fromLTWH(0, 0, s, s), Paint()..shader = _bg.createShader(Rect.fromLTWH(0, 0, s, s)));
-      _logoAt(c, s, 0.56);
+      c.drawRect(Rect.fromLTWH(0, 0, s, s), Paint()..color = Colors.white);
+      _logoAt(c, s, 0.72);
     }
 
     await _write('web/favicon.png', 64, rounded);

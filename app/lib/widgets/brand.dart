@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../theme.dart';
+import 'app_logo.dart';
 import 'civic.dart';
 
 /// The app's signature header: a deep-green gradient block with rounded bottom
@@ -114,7 +115,7 @@ class _BrandHeaderState extends State<BrandHeader> with SingleTickerProviderStat
                       child: Padding(
                         padding: EdgeInsets.only(left: showBack ? 12 : 0, top: 6),
                         child: Row(children: [
-                          const KolamMark(size: 16, color: AppColors.leaf),
+                          const LogoBadge(size: 22),
                           const SizedBox(width: 7),
                           Flexible(
                             child: Text(

@@ -71,6 +71,10 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  # App logo (Nam Nagaram)
+  assets:
+    - assets/brand/logo.png
+
   # Brand font, bundled so it works offline and renders instantly (OFL licence in assets/fonts)
   fonts:
     - family: Jakarta

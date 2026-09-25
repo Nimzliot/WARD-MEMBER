@@ -37,7 +37,7 @@ function layout(title, bodyHtml) {
 <div style="font-size:11px;letter-spacing:1.4px;font-weight:700;color:#8FE3B4">TAMIL NADU · PARTICIPATORY BUDGETING</div>
 <div style="font-size:22px;font-weight:800;margin-top:6px">${esc(title)}</div></td></tr>
 <tr><td style="padding:24px">${bodyHtml}</td></tr>
-<tr><td style="padding:14px 24px;background:#E8F5EE;font-size:11px;color:#5A6E63">Makkal Budget · SDG 11 prototype · not an official Government of Tamil Nadu service.</td></tr>
+<tr><td style="padding:14px 24px;background:#E8F5EE;font-size:11px;color:#5A6E63">Nam Nagaram · SDG 11 prototype · not an official Government of Tamil Nadu service.</td></tr>
 </table></td></tr></table></body></html>`;
 }
 
@@ -51,17 +51,17 @@ async function send({ to, subject, html, text }) {
     err.code = 'EMAIL_NOT_CONFIGURED';
     throw err;
   }
-  const info = await transporter().sendMail({ from: `"Makkal Budget" <${smtp.from}>`, to, subject, html, text });
+  const info = await transporter().sendMail({ from: `"Nam Nagaram" <${smtp.from}>`, to, subject, html, text });
   return info.messageId;
 }
 
 function sendVerificationCode(to, code) {
   return send({
     to,
-    subject: `${code} is your Makkal Budget verification code`,
-    text: `Your Makkal Budget verification code is ${code}. It expires in 5 minutes. Don't share it with anyone.`,
+    subject: `${code} is your Nam Nagaram verification code`,
+    text: `Your Nam Nagaram verification code is ${code}. It expires in 5 minutes. Don't share it with anyone.`,
     html: layout('Verify your email', `
-<p style="margin:0 0 14px">Use this code to add this email to your Makkal Budget account:</p>
+<p style="margin:0 0 14px">Use this code to add this email to your Nam Nagaram account:</p>
 <div style="font-size:34px;font-weight:800;letter-spacing:8px;color:#06402A;background:#E8F5EE;border-radius:14px;padding:16px;text-align:center">${esc(code)}</div>
 <p style="margin:14px 0 0;font-size:13px;color:#5A6E63">It expires in 5 minutes. Never share this code. The ward office will never ask for it.
 If you didn't request it, you can ignore this email.</p>`),

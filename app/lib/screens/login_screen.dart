@@ -233,7 +233,7 @@ class _LoginHeader extends StatelessWidget {
                       width: 52,
                       height: 52,
                       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-                      child: const Center(child: AppLogo(size: 38)),
+                      child: const Center(child: AppLogo(size: 46)),
                     ),
                     const SizedBox(width: 14),
                     Expanded(
@@ -242,10 +242,10 @@ class _LoginHeader extends StatelessWidget {
                             style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 17)),
                         const SizedBox(height: 3),
                         Row(children: [
-                          const KolamMark(size: 14, color: AppColors.leaf),
+                          const LogoBadge(size: 18),
                           const SizedBox(width: 6),
                           Flexible(
-                            child: Text(kAuthorityLine,
+                            child: Text('TAMIL NADU · PARTICIPATORY BUDGETING',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(

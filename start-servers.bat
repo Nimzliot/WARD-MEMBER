@@ -1,5 +1,5 @@
 @echo off
-REM Starts the Makkal Budget API + ngrok tunnel in the BACKGROUND (no windows).
+REM Starts the Nam Nagaram API + ngrok tunnel in the BACKGROUND (no windows).
 REM A supervisor restarts them if they stop. Logs: run\logs\  Stop: stop-servers.bat
 REM The APK and website use https://trade-skedaddle-previous.ngrok-free.dev
 cd /d "%~dp0"

@@ -11,6 +11,7 @@ import '../theme.dart';
 import '../utils/failure.dart';
 import '../utils/format.dart';
 import 'ballot_widgets.dart';
+import 'app_logo.dart';
 import 'civic.dart';
 
 /// Opens the full-page error screen for [error], unless it is a small input
@@ -52,7 +53,7 @@ class FailureScreen extends StatelessWidget {
                   )
                 else
                   const SizedBox(width: 16),
-                const KolamMark(size: 16, color: AppColors.emerald),
+                const LogoBadge(size: 22),
                 const SizedBox(width: 7),
                 Expanded(
                   child: Text(kAuthorityLine,
@@ -448,7 +449,7 @@ class _Details extends StatelessWidget {
   final AppFailure failure;
 
   String get _report => [
-        'Makkal Budget error ${failure.code}',
+        'Nam Nagaram error ${failure.code}',
         'Type: ${failure.kind.name}',
         'Time: ${formatDateTime(failure.at)}',
         if (failure.detail != null) failure.detail!.length > 1200 ? failure.detail!.substring(0, 1200) : failure.detail!,

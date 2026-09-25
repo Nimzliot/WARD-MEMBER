@@ -35,7 +35,7 @@ List<Widget> osmLayers() => [
       if (mapTilesEnabled)
         TileLayer(
           urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          userAgentPackageName: 'app.makkalbudget',
+          userAgentPackageName: 'app.namnagaram',
           maxZoom: 19,
           tileBuilder: (context, tile, _) => ColorFiltered(colorFilter: _greenTint, child: tile),
         ),

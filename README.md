@@ -1,4 +1,4 @@
-# Makkal Budget: Participatory Municipal Budgeting (SDG 11)
+# Nam Nagaram: Participatory Municipal Budgeting (SDG 11)
 
 Ward residents suggest projects, then back **every project they want funded** as long as their picks fit the ward's budget, within a set voting window. The results update live. Every ballot is added to a **hash chain**, so any edit, deletion or inserted ballot is visible to everyone.
 

@@ -121,12 +121,12 @@ callback.get('/callback', async (req, res) => {
     console.error('Razorpay callback error:', e.message);
   }
   res.type('html').send(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Makkal Budget · Payment</title>
+<title>Nam Nagaram · Payment</title>
 <style>body{margin:0;font-family:system-ui,sans-serif;background:linear-gradient(135deg,#0B5D3B,#06402A);color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center}
 .c{padding:32px;max-width:420px}.i{font-size:64px}h1{margin:.2em 0}p{opacity:.85;line-height:1.5}.t{margin-top:24px;font-size:12px;opacity:.6}</style></head>
 <body><div class="c"><div class="i">${ok ? '💚' : '⏳'}</div>
 <h1>${ok ? 'Thank you!' : 'Confirming your payment'}</h1>
-<p>${ok ? 'Your ward fund received it. Go back to the Makkal Budget app.' : 'Go back to the Makkal Budget app. It confirms with Razorpay in a few seconds.'}</p>
+<p>${ok ? 'Your ward fund received it. Go back to the Nam Nagaram app.' : 'Go back to the Nam Nagaram app. It confirms with Razorpay in a few seconds.'}</p>
 <p class="t">${razorpay.isTestMode() ? 'Razorpay TEST MODE · no real money was charged · ' : ''}SDG 11 prototype</p></div></body></html>`);
 });
 
@@ -219,7 +219,7 @@ router.post('/checkout', async (req, res) => {
       keyId: razorpay.keyId(), // public key id; the secret never leaves the server
       amount: order.amount, // paise
       currency: order.currency,
-      name: 'Makkal Budget',
+      name: 'Nam Nagaram',
       description: `Ward Fund · ${p.wardName}`.slice(0, 250),
       prefill: { name: req.profile.full_name || '', email, contact: req.profile.phone ? `+91${req.profile.phone}` : '' },
       testMode: razorpay.isTestMode(),
@@ -238,7 +238,7 @@ router.post('/contribute', async (req, res) => {
     const phone = req.profile.phone ? `+91${req.profile.phone}` : undefined;
     const link = await razorpay.createPaymentLink({
       amount: p.amount,
-      description: `Makkal Budget · Ward Fund · ${p.wardName}`,
+      description: `Nam Nagaram · Ward Fund · ${p.wardName}`,
       referenceId: p.contribution.id,
       callbackUrl: `${baseUrl(req)}/api/funds/callback`,
       customer: { name: req.profile.full_name || 'Resident', ...(email && { email }), ...(phone && { contact: phone }) },

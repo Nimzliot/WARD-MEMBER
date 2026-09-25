@@ -111,7 +111,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                           const SizedBox(width: 8),
                           Opacity(
                             opacity: _title.value,
-                            child: Text(kAuthorityLine,
+                            child: Text('TAMIL NADU · PARTICIPATORY BUDGETING',
                                 style: TextStyle(
                                   color: Colors.white.withValues(alpha: 0.75),
                                   fontSize: 11,
@@ -185,7 +185,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                       opacity: _drop.value.clamp(0.0, 1.0),
                       child: const Padding(
                         padding: EdgeInsets.only(top: 8),
-                        child: AppLogo(size: 64),
+                        child: AppLogo(size: 90),
                       ),
                     ),
                   ),

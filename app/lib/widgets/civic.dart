@@ -8,7 +8,7 @@ import '../theme.dart';
 /// kolam mark. Deliberately NOT the state emblem — this is a prototype, not an
 /// official Government of Tamil Nadu service (see [PrototypeNotice]).
 
-const kAuthorityLine = 'TAMIL NADU · PARTICIPATORY BUDGETING';
+const kAuthorityLine = 'NAM NAGARAM · PARTICIPATORY BUDGETING';
 
 /// Thin saffron / white / green strip, as on Indian public-service portals.
 class TricolourStrip extends StatelessWidget {

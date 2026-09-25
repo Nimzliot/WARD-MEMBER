@@ -68,7 +68,7 @@ Future<Uint8List> buildSummaryPdf(
   final bold = pw.Font.ttf(await rootBundle.load('assets/fonts/PlusJakartaSans-Bold.ttf'));
   final doc = pw.Document(
     title: 'Resident conversations summary · ${s.wardName}',
-    author: 'Makkal Budget (Ward Admin + Ward Assistant AI)',
+    author: 'Nam Nagaram (Ward Admin + Ward Assistant AI)',
   );
 
   pw.Widget heading(String t, {PdfColor color = _forestDark}) => pw.Padding(
@@ -105,7 +105,7 @@ Future<Uint8List> buildSummaryPdf(
     footer: (ctx) => pw.Row(children: [
       pw.Expanded(
         child: pw.Text(
-          'Makkal Budget · SDG 11 prototype · not an official Government of Tamil Nadu document',
+          'Nam Nagaram · SDG 11 prototype · not an official Government of Tamil Nadu document',
           style: const pw.TextStyle(fontSize: 8, color: _muted),
         ),
       ),
