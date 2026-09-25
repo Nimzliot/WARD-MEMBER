@@ -80,12 +80,11 @@ class _MapScreenState extends State<MapScreen> {
           subtitle: '${wp.ward?.name ?? ''} · ${pinned.length} pins',
           bottomPadding: 14,
           actions: [
-            if (isAdmin)
-              HeaderIconButton(
-                icon: Icons.view_in_ar_rounded,
-                tooltip: '3D map of all wards',
-                onPressed: () => context.push('/admin/map'),
-              ),
+            HeaderIconButton(
+              icon: Icons.view_in_ar_rounded,
+              tooltip: isAdmin ? '3D map of all wards' : '3D ward map',
+              onPressed: () => context.push(isAdmin ? '/admin/map' : '/map3d'),
+            ),
           ],
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,

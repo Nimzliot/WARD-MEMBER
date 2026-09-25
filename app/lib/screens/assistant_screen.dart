@@ -42,7 +42,7 @@ class AssistantScreen extends StatelessWidget {
           ),
           const Expanded(
             child: AiChat(
-              greeting: 'Namaste! I know every proposal, budget line and live vote count in your ward. '
+              greeting: 'Vanakkam! I know every proposal, budget line and live vote count in your ward. '
                   'Ask me anything, in English, தமிழ் or हिंदी.',
               suggestions: [
                 'Explain our ward budget in simple words',

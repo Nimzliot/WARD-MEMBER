@@ -32,7 +32,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final firstName = profile.fullName?.trim().split(' ').first ?? '';
 
     final header = BrandHeader(
-      title: 'Namaste, $firstName',
+      title: 'Vanakkam, $firstName',
       subtitle: '${wp.ward?.name ?? profile.wardName ?? 'My ward'} · Budget 2026–27',
       actions: [InitialsAvatar(name: profile.fullName, onTap: () => context.push('/profile'))],
       bottomPadding: 48, // room for the overlapping assistant card

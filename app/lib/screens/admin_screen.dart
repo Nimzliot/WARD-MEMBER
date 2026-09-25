@@ -337,19 +337,51 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
 
   /// One Ward Admin per ward: pick any resident (not a super admin).
   Future<void> _pickWardAdmin(_AdminWard aw) async {
-    List<Map<String, dynamic>> people;
+    List<Map<String, dynamic>> everyone;
     try {
       final r = await ApiService.get('/api/admin/users');
-      people = (r['users'] as List)
-          .cast<Map<String, dynamic>>()
-          .where((u) => u['full_name'] != null && u['role'] != 'admin' && u['resident_id'] != null)
-          .toList()
-        ..sort((a, b) => (a['ward_id'] == aw.ward.id ? 0 : 1).compareTo(b['ward_id'] == aw.ward.id ? 0 : 1));
+      everyone = (r['users'] as List).cast<Map<String, dynamic>>();
     } catch (e) {
       if (mounted) await showFailure(context, e);
       return;
     }
+    // Why someone can't be picked (null = can be picked).
+    String? blocked(Map<String, dynamic> u) {
+      if (u['role'] == 'admin') return 'Super admin';
+      if (u['full_name'] == null || u['ward_id'] == null || u['resident_id'] == null) return 'Profile not finished';
+      if (u['ward_admin_of'] != null && u['ward_admin_of'] != aw.ward.id) {
+        return 'Ward Admin of ${_wardName(u['ward_admin_of'] as int)}';
+      }
+      return null;
+    }
+
+    final eligible = everyone.where((u) => blocked(u) == null).toList()
+      ..sort((a, b) => (a['ward_id'] == aw.ward.id ? 0 : 1).compareTo(b['ward_id'] == aw.ward.id ? 0 : 1));
+    final others = everyone.where((u) => blocked(u) != null).toList();
     if (!mounted) return;
+
+    Widget person(Map<String, dynamic> u, {String? reason}) {
+      final name = (u['full_name'] as String?) ?? (u['email'] as String? ?? 'New account');
+      return Row(children: [
+        Opacity(opacity: reason == null ? 1 : 0.45, child: InitialsAvatar(name: name, size: 34)),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontWeight: FontWeight.w700, color: reason == null ? AppColors.ink : AppColors.inkMuted)),
+            Text(
+              reason ?? [_wardName(u['ward_id'] as int? ?? 0), u['resident_id'] as String? ?? ''].join(' · '),
+              style: TextStyle(fontSize: 12, color: reason == null ? AppColors.inkMuted : const Color(0xFFB27300)),
+            ),
+          ]),
+        ),
+        if (reason == null && u['full_name'] == aw.adminName) const Icon(Icons.check_rounded, color: AppColors.forest),
+        if (reason != null) const Icon(Icons.block_rounded, size: 18, color: AppColors.mintLine),
+      ]);
+    }
+
     final picked = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (ctx) => SimpleDialog(
@@ -357,35 +389,29 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
         children: [
           const Padding(
             padding: EdgeInsets.fromLTRB(24, 0, 24, 8),
-            child: Text('Only one person can be Ward Admin at a time. They receive residents\' encrypted messages '
-                'and run fundraisers for this ward.',
+            child: Text('One Ward Admin per ward. Pick a resident: someone who signed in and finished their profile '
+                '(name, ward, Resident ID).',
                 style: TextStyle(fontSize: 13, color: AppColors.inkMuted)),
           ),
-          if (people.isEmpty)
-            const Padding(padding: EdgeInsets.all(24), child: Text('No residents in this ward yet.'))
+          if (eligible.isEmpty)
+            const Padding(
+              padding: EdgeInsets.fromLTRB(24, 8, 24, 8),
+              child: Text('No residents to choose yet. Ask someone to sign in to the app and finish the resident '
+                  'profile, then they will appear here.',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+            )
           else
-            for (final u in people)
-              SimpleDialogOption(
-                onPressed: () => Navigator.pop(ctx, u),
-                child: Row(children: [
-                  InitialsAvatar(name: u['full_name'] as String?, size: 34),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(u['full_name'] as String, style: const TextStyle(fontWeight: FontWeight.w700)),
-                      Text(
-                        [
-                          _wardName(u['ward_id'] as int? ?? 0),
-                          u['resident_id'] as String? ?? '',
-                          if (u['ward_admin_of'] != null && u['ward_admin_of'] != aw.ward.id) 'Ward Admin elsewhere',
-                        ].join(' · '),
-                        style: const TextStyle(fontSize: 12, color: AppColors.inkMuted),
-                      ),
-                    ]),
-                  ),
-                  if (u['full_name'] == aw.adminName) const Icon(Icons.check_rounded, color: AppColors.forest),
-                ]),
-              ),
+            for (final u in eligible)
+              SimpleDialogOption(onPressed: () => Navigator.pop(ctx, u), child: person(u)),
+          if (others.isNotEmpty) ...[
+            const Padding(
+              padding: EdgeInsets.fromLTRB(24, 12, 24, 4),
+              child: Text("CAN'T BE PICKED",
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1, color: AppColors.inkMuted)),
+            ),
+            for (final u in others)
+              Padding(padding: const EdgeInsets.fromLTRB(24, 6, 24, 6), child: person(u, reason: blocked(u))),
+          ],
         ],
       ),
     );
@@ -808,6 +834,40 @@ class _PeopleTabState extends State<_PeopleTab> with AutomaticKeepAliveClientMix
     }
   }
 
+  /// Makes this resident the Ward Admin of the ward they live in.
+  Future<void> _makeWardAdmin(Map<String, dynamic> u) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ApiService.patch('/api/admin/wards/${u['ward_id']}', {'adminUserId': u['id']});
+      messenger.showSnackBar(SnackBar(content: Text('${u['full_name']} is now Ward Admin')));
+      widget.onChanged();
+      await _load();
+    } catch (e) {
+      if (mounted && !await showFailure(context, e)) {
+        messenger.showSnackBar(SnackBar(content: Text(friendlyError(e))));
+      }
+    }
+  }
+
+  /// Super admin = whole-app control, no ward. Confirm, because it removes their ward and Resident ID.
+  Future<bool> _confirmSuper(Map<String, dynamic> u) async =>
+      await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          icon: const Icon(Icons.admin_panel_settings_rounded, color: AppColors.forest),
+          title: Text('Make ${u['full_name'] ?? 'this person'} a super admin?'),
+          content: const Text(
+            'A super admin controls every ward from the Admin panel only. They lose their ward and Resident ID '
+            'and can no longer use the resident app or vote.\n\nTo manage just one ward, use "Make Ward Admin" instead.',
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Make super admin')),
+          ],
+        ),
+      ) ==
+      true;
+
   Future<void> _changeWard(Map<String, dynamic> u) async {
     final ward = await showDialog<int>(
       context: context,
@@ -881,21 +941,28 @@ class _PeopleTabState extends State<_PeopleTab> with AutomaticKeepAliveClientMix
                     overflow: TextOverflow.ellipsis,
                   ),
                   trailing: PopupMenuButton<String>(
-                    onSelected: (v) {
+                    onSelected: (v) async {
                       switch (v) {
+                        case 'wardadmin':
+                          await _makeWardAdmin(u);
                         case 'admin':
-                          _update(u, {'role': 'admin'}, 'Now an admin');
+                          if (await _confirmSuper(u)) await _update(u, {'role': 'admin'}, 'Now a super admin');
                         case 'resident':
-                          _update(u, {'role': 'resident'}, 'Admin rights removed');
+                          await _update(u, {'role': 'resident'}, 'Super admin rights removed');
                         case 'ward':
-                          _changeWard(u);
+                          await _changeWard(u);
                       }
                     },
                     itemBuilder: (_) => [
-                      if (u['role'] != 'admin') const PopupMenuItem(value: 'admin', child: Text('Make admin')),
+                      if (u['role'] != 'admin' && u['ward_id'] != null && u['resident_id'] != null && u['ward_admin_of'] == null)
+                        PopupMenuItem(
+                          value: 'wardadmin',
+                          child: Text('Make Ward Admin of ${wardName(u['ward_id'])}'),
+                        ),
+                      if (u['role'] != 'admin') const PopupMenuItem(value: 'admin', child: Text('Make super admin…')),
                       if (u['role'] == 'admin' && u['id'] != me)
-                        const PopupMenuItem(value: 'resident', child: Text('Remove admin')),
-                      const PopupMenuItem(value: 'ward', child: Text('Change ward…')),
+                        const PopupMenuItem(value: 'resident', child: Text('Remove super admin')),
+                      if (u['role'] != 'admin') const PopupMenuItem(value: 'ward', child: Text('Change ward…')),
                     ],
                   ),
                 ),

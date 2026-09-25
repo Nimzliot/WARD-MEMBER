@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart' show LatLng;
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -25,8 +26,11 @@ enum _Metric { cost, votes }
 
 /// Admin → 3D map: every proposal and idea in every ward as a 3D pillar rising
 /// from a tilted map. Pillar height = cost or votes; colour = review status.
+/// With [homeWard] set (ward members) it is locked to that ward and read-only.
 class AdminMapScreen extends StatefulWidget {
-  const AdminMapScreen({super.key});
+  const AdminMapScreen({super.key, this.homeWard});
+
+  final int? homeWard;
 
   @override
   State<AdminMapScreen> createState() => _AdminMapScreenState();
@@ -45,7 +49,8 @@ class _AdminMapScreenState extends State<AdminMapScreen> with SingleTickerProvid
   Object? _error;
   bool _mapReady = false;
 
-  int? _ward; // null = all wards
+  late int? _ward = widget.homeWard; // null = all wards
+  bool get _resident => widget.homeWard != null;
   _Metric _metric = _Metric.cost;
   bool _threeD = true;
   String? _selectedId;
@@ -289,14 +294,16 @@ class _AdminMapScreenState extends State<AdminMapScreen> with SingleTickerProvid
                 const SizedBox(width: 8),
               ])),
               const SizedBox(height: 10),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(children: [
-                  _chip('All wards', _ward == null, () => _setWard(null)),
-                  for (final w in _wards) _chip(_wardName(w.id), _ward == w.id, () => _setWard(w.id)),
-                ]),
-              ),
-              const SizedBox(height: 8),
+              if (!_resident) ...[
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(children: [
+                    _chip('All wards', _ward == null, () => _setWard(null)),
+                    for (final w in _wards) _chip(_wardName(w.id), _ward == w.id, () => _setWard(w.id)),
+                  ]),
+                ),
+                const SizedBox(height: 8),
+              ],
               Row(children: [
                 _toolButton(_threeD ? Icons.layers_rounded : Icons.view_in_ar_rounded, _threeD ? '2D' : '3D', _toggle3D),
                 const SizedBox(width: 8),
@@ -333,8 +340,9 @@ class _AdminMapScreenState extends State<AdminMapScreen> with SingleTickerProvid
                       proposal: selected,
                       ward: _wardName(selected.wardId),
                       votes: _votes[selected.id] ?? 0,
-                      onApprove: () => _approve(selected),
-                      onEdit: () => _edit(selected),
+                      onApprove: _resident ? null : () => _approve(selected),
+                      onEdit: _resident ? null : () => _edit(selected),
+                      onOpen: () => context.push('/proposal/${selected.id}'),
                     )
                   : _Summary(
                       key: const ValueKey('summary'),
@@ -708,15 +716,17 @@ class _SelectedCard extends StatelessWidget {
     required this.proposal,
     required this.ward,
     required this.votes,
-    required this.onApprove,
-    required this.onEdit,
+    this.onApprove,
+    this.onEdit,
+    required this.onOpen,
   });
 
   final Proposal proposal;
   final String ward;
   final int votes;
-  final VoidCallback onApprove;
-  final VoidCallback onEdit;
+  final VoidCallback? onApprove;
+  final VoidCallback? onEdit;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -767,7 +777,15 @@ class _SelectedCard extends StatelessWidget {
           ]),
           const SizedBox(height: 12),
           Row(children: [
-            if (pending) ...[
+            if (onEdit == null)
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: onOpen,
+                  icon: const Icon(Icons.open_in_new_rounded),
+                  label: const Text('View details'),
+                ),
+              ),
+            if (pending && onApprove != null) ...[
               Expanded(
                 child: FilledButton.icon(
                   onPressed: onApprove,
@@ -777,13 +795,14 @@ class _SelectedCard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
             ],
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: onEdit,
-                icon: Icon(pending ? Icons.rate_review_outlined : Icons.edit_outlined),
-                label: Text(pending ? 'Review' : 'Edit'),
+            if (onEdit != null)
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: onEdit,
+                  icon: Icon(pending ? Icons.rate_review_outlined : Icons.edit_outlined),
+                  label: Text(pending ? 'Review' : 'Edit'),
+                ),
               ),
-            ),
           ]),
         ]),
       ),

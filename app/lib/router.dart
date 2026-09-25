@@ -103,6 +103,10 @@ GoRouter buildRouter(AuthProvider auth) => GoRouter(
         GoRoute(path: '/admin/errors', builder: (_, _) => const ErrorGalleryScreen()),
         GoRoute(path: '/admin/map', builder: (_, _) => const AdminMapScreen()),
         GoRoute(
+          path: '/map3d',
+          builder: (_, _) => AdminMapScreen(homeWard: auth.profile?.wardId),
+        ),
+        GoRoute(
           path: '/proposal/:id',
           builder: (_, state) => ProposalDetailScreen(proposalId: state.pathParameters['id']!),
         ),

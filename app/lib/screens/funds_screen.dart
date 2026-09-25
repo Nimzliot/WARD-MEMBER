@@ -110,7 +110,6 @@ class _FundsScreenState extends State<FundsScreen> {
                   _HeaderStat(icon: Icons.people_alt_rounded, value: '${s?.supporters ?? 0}'),
                   _HeaderStat(icon: Icons.favorite_rounded, value: '${s?.payments ?? 0}'),
                   if ((s?.myTotal ?? 0) > 0) _HeaderStat(icon: Icons.person_rounded, value: inrCompact(s!.myTotal), bright: true),
-                  if (s?.testMode ?? true) const _HeaderStat(icon: Icons.science_outlined, value: 'TEST'),
                 ]),
               ]),
             ),
@@ -556,13 +555,6 @@ class _ContributeSheetState extends State<ContributeSheet> with WidgetsBindingOb
           secondary: const Icon(Icons.visibility_off_rounded, color: AppColors.forest),
           title: const Text('Give anonymously', style: TextStyle(fontWeight: FontWeight.w600)),
         ),
-        if (widget.fund.testMode) ...[
-          const MessageBanner(
-            'Razorpay TEST MODE: use test UPI "success@razorpay" or card 4111 1111 1111 1111. No real money is charged.',
-            isError: false,
-          ),
-          const SizedBox(height: 12),
-        ],
         if (_error != null) ...[MessageBanner(_error!), const SizedBox(height: 12)],
         PrimaryButton(
           label: 'Pay ${inr(int.tryParse(_custom.text) ?? _amount)} with Razorpay',
