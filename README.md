@@ -1,8 +1,10 @@
-# Ward Budget: Participatory Municipal Budgeting (SDG 11)
+# Makkal Budget: Participatory Municipal Budgeting (SDG 11)
 
 Ward residents suggest projects, then back **every project they want funded** as long as their picks fit the ward's budget, within a set voting window. The results update live. Every ballot is added to a **hash chain**, so any edit, deletion or inserted ballot is visible to everyone.
 
 > Hackathon prototype · SDG 11 Sustainable Cities & Communities · Flutter + Node.js + Supabase
+>
+> Tamil Nadu civic look (tricolour strip, kolam patterns, temple-gateway logo). Original artwork: it does **not** use the state emblem, and the app says it is not an official Government of Tamil Nadu service. Regenerate the launcher icons with `flutter test tool/make_icons_test.dart`.
 
 ## Screenshots
 | Login | Home | Proposal | AI explain |

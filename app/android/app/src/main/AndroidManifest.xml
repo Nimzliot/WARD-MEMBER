@@ -2,7 +2,7 @@
     <!-- Needed in release builds to reach Supabase and the Node API -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="Ward Budget"
+        android:label="Makkal Budget"
         android:usesCleartextTraffic="true"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">

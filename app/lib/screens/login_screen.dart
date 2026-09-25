@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../utils/errors.dart';
 import '../theme.dart';
+import '../widgets/app_logo.dart';
 import '../widgets/civic.dart';
 import '../widgets/common.dart';
 
@@ -229,12 +230,12 @@ class _LoginHeader extends StatelessWidget {
                       width: 52,
                       height: 52,
                       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-                      child: const Icon(Icons.how_to_vote_rounded, color: AppColors.forest, size: 30),
+                      child: const Center(child: AppLogo(size: 38)),
                     ),
                     const SizedBox(width: 14),
                     Expanded(
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        const Text('Ward Budget',
+                        const Text(kAppName,
                             style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 17)),
                         const SizedBox(height: 3),
                         Row(children: [

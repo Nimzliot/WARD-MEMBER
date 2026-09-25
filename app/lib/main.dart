@@ -8,6 +8,7 @@ import 'providers/auth_provider.dart';
 import 'providers/ward_provider.dart';
 import 'router.dart';
 import 'theme.dart';
+import 'widgets/app_logo.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -50,7 +51,7 @@ class _WardBudgetAppState extends State<WardBudgetApp> {
 
   @override
   Widget build(BuildContext context) => MaterialApp.router(
-        title: 'Ward Budget',
+        title: kAppName,
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light,
         themeMode: ThemeMode.light, // brand is green & white

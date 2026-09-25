@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
 import '../theme.dart';
+import '../widgets/app_logo.dart';
 import '../widgets/civic.dart';
 
 /// Becomes true when the intro animation has finished. The router keeps the
@@ -121,7 +122,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                         ]),
                         const SizedBox(height: 10),
                         _StaggeredTitle(
-                          text: 'Ward Budget',
+                          text: kAppName,
                           progress: _title.value,
                           style: theme.textTheme.headlineLarge!
                               .copyWith(fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.8),
@@ -178,22 +179,13 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                 height: 104,
                 color: Colors.white,
                 child: Stack(alignment: Alignment.center, children: [
-                  // ballot slot
-                  Positioned(
-                    top: 18,
-                    child: Container(
-                      width: 46,
-                      height: 5,
-                      decoration: BoxDecoration(color: AppColors.mintLine, borderRadius: BorderRadius.circular(3)),
-                    ),
-                  ),
                   Transform.translate(
                     offset: Offset(0, -70 * (1 - _drop.value)),
                     child: Opacity(
                       opacity: _drop.value.clamp(0.0, 1.0),
                       child: const Padding(
                         padding: EdgeInsets.only(top: 8),
-                        child: Icon(Icons.how_to_vote_rounded, size: 56, color: AppColors.forest),
+                        child: AppLogo(size: 64),
                       ),
                     ),
                   ),
