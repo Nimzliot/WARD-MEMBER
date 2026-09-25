@@ -4,6 +4,7 @@ const cfg = require('./config');
 const { requireAuth } = require('./middleware/auth');
 
 const app = express();
+app.set('trust proxy', 1); // behind Render / ngrok: req.ip = real client IP (used by the SMS rate limit)
 app.use(cors());
 app.use(express.json({ limit: '100kb' }));
 

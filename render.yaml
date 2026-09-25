@@ -1,0 +1,26 @@
+# Render Blueprint — deploys the Node API from the server/ folder.
+# Render dashboard → New → Blueprint → pick this GitHub repo → fill in the secret values.
+services:
+  - type: web
+    name: ward-budget-api
+    runtime: node
+    plan: free
+    region: singapore        # closest Render region to India
+    rootDir: server
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: SUPABASE_URL
+        sync: false          # you are asked for these values on first deploy
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: FAST2SMS_API_KEY
+        sync: false
+      - key: VOTE_SALT
+        sync: false          # use the SAME value as your local server/.env, or existing votes won't match their voter
+      - key: DEV_MODE
+        value: "false"

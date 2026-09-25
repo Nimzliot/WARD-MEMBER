@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
@@ -100,6 +101,20 @@ class ProfileScreen extends StatelessWidget {
                 ),
               ]),
             ),
+            if (p.isAdmin) ...[
+              const SizedBox(height: 12),
+              Card(
+                color: theme.colorScheme.tertiaryContainer,
+                clipBehavior: Clip.antiAlias,
+                child: ListTile(
+                  leading: const Icon(Icons.admin_panel_settings),
+                  title: const Text('Admin panel', style: TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: const Text('Create proposals with budget lines'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/admin'),
+                ),
+              ),
+            ],
             const SizedBox(height: 24),
             OutlinedButton.icon(
               onPressed: () => _confirmLogout(context),

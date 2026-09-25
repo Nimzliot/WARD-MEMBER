@@ -1,7 +1,9 @@
 import 'package:go_router/go_router.dart';
 
 import 'providers/auth_provider.dart';
+import 'screens/admin_screen.dart';
 import 'screens/app_shell.dart';
+import 'screens/audit_screen.dart';
 import 'screens/email_otp_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
@@ -33,6 +35,7 @@ GoRouter buildRouter(AuthProvider auth) => GoRouter(
           case AuthStage.needsProfile:
             return loc == '/profile-setup' ? null : '/profile-setup';
           case AuthStage.ready:
+            if (loc == '/admin' && !(auth.profile?.isAdmin ?? false)) return '/home';
             return _onboardingRoutes.contains(loc) ? '/home' : null;
         }
       },
@@ -52,10 +55,14 @@ GoRouter buildRouter(AuthProvider auth) => GoRouter(
             StatefulShellBranch(routes: [
               GoRoute(path: '/results', builder: (_, _) => const ResultsScreen()),
             ]),
+            StatefulShellBranch(routes: [
+              GoRoute(path: '/audit', builder: (_, _) => const AuditScreen()),
+            ]),
           ],
         ),
         // Full-screen pages pushed over the tabs
         GoRoute(path: '/profile', builder: (_, _) => const ProfileScreen()),
+        GoRoute(path: '/admin', builder: (_, _) => const AdminScreen()),
         GoRoute(
           path: '/proposal/:id',
           builder: (_, state) => ProposalDetailScreen(proposalId: state.pathParameters['id']!),
