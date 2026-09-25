@@ -29,6 +29,11 @@ class ApiService {
   static Future<Map<String, dynamic>> post(String path, Map<String, dynamic> body) =>
       _send('POST', path, body);
 
+  static Future<Map<String, dynamic>> patch(String path, Map<String, dynamic> body) =>
+      _send('PATCH', path, body);
+
+  static Future<Map<String, dynamic>> delete(String path) => _send('DELETE', path);
+
   static Future<Map<String, dynamic>> _send(String method, String path,
       [Map<String, dynamic>? body]) async {
     var session = _auth.currentSession;
@@ -46,9 +51,12 @@ class ApiService {
 
     http.Response res;
     try {
-      final request = method == 'GET'
-          ? client.get(uri, headers: headers)
-          : client.post(uri, headers: headers, body: jsonEncode(body ?? {}));
+      final request = switch (method) {
+        'GET' => client.get(uri, headers: headers),
+        'DELETE' => client.delete(uri, headers: headers),
+        'PATCH' => client.patch(uri, headers: headers, body: jsonEncode(body ?? {})),
+        _ => client.post(uri, headers: headers, body: jsonEncode(body ?? {})),
+      };
       // Generous timeout: a free Render instance can take ~50 s to wake up.
       res = await request.timeout(const Duration(seconds: 60));
     } on TimeoutException {

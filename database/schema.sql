@@ -25,7 +25,11 @@ drop table if exists public.wards        cascade;
 create table public.wards (
   id          int primary key,
   name        text   not null unique,
-  budget_pool bigint not null check (budget_pool > 0)          -- INR (whole rupees)
+  budget_pool bigint not null check (budget_pool > 0),         -- INR (whole rupees)
+  voting_opens_at  timestamptz,                               -- null = already open
+  voting_closes_at timestamptz,                               -- null = no deadline
+  constraint wards_window_check
+    check (voting_opens_at is null or voting_closes_at is null or voting_closes_at > voting_opens_at)
 );
 
 create table public.profiles (
@@ -59,10 +63,17 @@ create table public.proposals (
   description text not null default '',
   category    text not null,
   total_cost  bigint not null default 0,                      -- kept = sum(budget_items.amount) by trigger
-  created_at  timestamptz not null default now(),
-  unique (id, ward_id)                                        -- lets votes enforce proposal ∈ ward
+  status       text not null default 'approved'
+               check (status in ('pending', 'approved', 'rejected')), -- only approved ones are on the ballot
+  origin       text not null default 'official'
+               check (origin in ('official', 'resident')),   -- resident = submitted as an idea
+  submitted_by uuid references auth.users(id) on delete set null,
+  review_note  text,                                          -- admin's reason (shown to the resident)
+  reviewed_at  timestamptz,
+  created_at  timestamptz not null default now()
 );
-create index proposals_ward_idx on public.proposals (ward_id);
+create index proposals_ward_idx on public.proposals (ward_id, status);
+create index proposals_submitted_by_idx on public.proposals (submitted_by);
 
 create table public.budget_items (
   id          uuid primary key default gen_random_uuid(),
@@ -73,20 +84,22 @@ create table public.budget_items (
 create index budget_items_proposal_idx on public.budget_items (proposal_id);
 
 -- Hash-chained, tamper-visible ballot box. Written ONLY by the Node server.
+-- One row = one resident's ballot: every project they back, costing <= the ward pool.
 create table public.votes (
-  id          uuid primary key default gen_random_uuid(),
-  user_id     uuid references auth.users(id) on delete set null, -- chain survives account deletion
-  ward_id     int  not null references public.wards(id),
-  proposal_id uuid not null,
-  voter_hash  text not null,                                  -- SHA-256(user_id + VOTE_SALT)
-  prev_hash   text not null,                                  -- hash of previous vote in ward ('0'*64 for first)
-  hash        text not null unique,                           -- SHA-256(voter_hash + proposal_id + timestamp + prev_hash)
-  created_at  timestamptz not null default now(),
-  unique (user_id, ward_id),                                  -- one vote per user per ward
-  unique (ward_id, prev_hash),                                -- chain can never fork
-  foreign key (proposal_id, ward_id) references public.proposals (id, ward_id) on delete restrict
+  id           uuid primary key default gen_random_uuid(),
+  user_id      uuid references auth.users(id) on delete set null, -- chain survives account deletion
+  ward_id      int  not null references public.wards(id),
+  proposal_ids uuid[] not null
+               check (cardinality(proposal_ids) between 1 and 50), -- sorted; validated by the server
+  voter_hash   text not null,                                 -- SHA-256(user_id + VOTE_SALT)
+  prev_hash    text not null,                                 -- hash of previous ballot in ward ('0'*64 for first)
+  hash         text not null unique,                          -- SHA-256(voter_hash + ids.join(',') + timestamp + prev_hash)
+  created_at   timestamptz not null default now(),
+  unique (user_id, ward_id),                                  -- one ballot per user per ward
+  unique (ward_id, prev_hash)                                 -- chain can never fork
 );
 create index votes_ward_idx on public.votes (ward_id, created_at);
+create index votes_proposal_ids_idx on public.votes using gin (proposal_ids);
 
 -- ---------------------------------------------------------------------
 -- 2. Functions & triggers
@@ -149,10 +162,10 @@ $$;
 -- 2e. Client RPCs (votes.user_id is hidden from clients, so these answer the two
 --     questions the app needs without exposing who voted for what).
 
--- Which proposal did *I* vote for in my ward? (null = not voted yet)
+-- Which proposals are on *my* ballot in my ward? (null = not voted yet)
 create or replace function public.my_vote()
-returns uuid language sql stable security definer set search_path = public as $$
-  select proposal_id from public.votes
+returns uuid[] language sql stable security definer set search_path = public as $
+  select proposal_ids from public.votes
    where user_id = auth.uid() and ward_id = public.my_ward_id()
 $$;
 
@@ -202,39 +215,53 @@ grant update (full_name, ward_id, resident_id) on public.profiles to authenticat
 -- phone_otps: no policies + no grants = invisible to clients.
 revoke all on public.phone_otps from anon, authenticated;
 
--- proposals & budget items: your own ward (admins see all). Writes go through Node.
+-- proposals & budget items: approved ones in your ward + your own ideas (any
+-- status); admins see everything. Writes go through Node.
 create policy "proposals: read own ward" on public.proposals
-  for select to authenticated using (ward_id = public.my_ward_id() or public.is_admin());
+  for select to authenticated using (
+    public.is_admin()
+    or (ward_id = public.my_ward_id() and (status = 'approved' or submitted_by = auth.uid())));
 create policy "budget_items: read own ward" on public.budget_items
   for select to authenticated using (
     exists (select 1 from public.proposals p
              where p.id = proposal_id
-               and (p.ward_id = public.my_ward_id() or public.is_admin())));
+               and (public.is_admin()
+                    or (p.ward_id = public.my_ward_id()
+                        and (p.status = 'approved' or p.submitted_by = auth.uid())))));
 revoke insert, update, delete on public.proposals, public.budget_items from anon, authenticated;
 
 -- votes: read your ward's votes, but NOT the user_id column (anonymity).
--- Clients must select explicit columns, e.g. .select('id, proposal_id, created_at').
+-- Clients must select explicit columns, e.g. .select('id, proposal_ids, created_at').
 create policy "votes: read own ward" on public.votes
   for select to authenticated using (ward_id = public.my_ward_id() or public.is_admin());
 revoke all on public.votes from anon, authenticated;
-grant select (id, ward_id, proposal_id, voter_hash, prev_hash, hash, created_at)
+grant select (id, ward_id, proposal_ids, voter_hash, prev_hash, hash, created_at)
   on public.votes to authenticated;
 
 -- ---------------------------------------------------------------------
--- 4. Realtime on votes (Live Results screen)
+-- 4. Realtime: votes (Live Results), wards + proposals (admin changes)
 -- ---------------------------------------------------------------------
-do $$ begin
+do $ begin
   alter publication supabase_realtime add table public.votes;
 exception when duplicate_object then null;
-end $$;
+end $;
+do $ begin
+  alter publication supabase_realtime add table public.wards;
+exception when duplicate_object then null;
+end $;
+do $ begin
+  alter publication supabase_realtime add table public.proposals;
+exception when duplicate_object then null;
+end $;
 
 -- ---------------------------------------------------------------------
 -- 5. Seed data (amounts in INR)
 -- ---------------------------------------------------------------------
-insert into public.wards (id, name, budget_pool) values
-  (1, 'Ward 1 – Gandhi Nagar', 7500000),   -- ₹75,00,000
-  (2, 'Ward 2 – Lake View',    6000000),   -- ₹60,00,000
-  (3, 'Ward 3 – Old Market',   5000000);   -- ₹50,00,000
+-- Voting opened yesterday and closes in 14 days (admins can change this in the app).
+insert into public.wards (id, name, budget_pool, voting_opens_at, voting_closes_at) values
+  (1, 'Ward 1 – Gandhi Nagar', 7500000, now() - interval '1 day', now() + interval '14 days'),  -- ₹75,00,000
+  (2, 'Ward 2 – Lake View',    6000000, now() - interval '1 day', now() + interval '14 days'),  -- ₹60,00,000
+  (3, 'Ward 3 – Old Market',   5000000, now() - interval '1 day', now() + interval '14 days');  -- ₹50,00,000
 
 -- helper: items are [["label", amount], ...]; total_cost is filled by the trigger
 create or replace function pg_temp.add_proposal(p_ward int, p_title text, p_category text,

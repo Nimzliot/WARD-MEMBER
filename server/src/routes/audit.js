@@ -4,7 +4,7 @@ const { GENESIS_HASH, voteHash } = require('../lib/hash');
 
 const router = express.Router();
 
-// GET /api/audit/:wardId → anonymised vote chain + integrity verdict
+// GET /api/audit/:wardId → anonymised ballot chain + integrity verdict
 router.get('/:wardId', async (req, res) => {
   const wardId = Number(req.params.wardId);
   if (!Number.isInteger(wardId)) return res.status(400).json({ error: 'Invalid ward id' });
@@ -18,13 +18,14 @@ router.get('/:wardId', async (req, res) => {
   const [votes, proposals] = await Promise.all([
     supabase
       .from('votes')
-      .select('id, proposal_id, voter_hash, prev_hash, hash, created_at')
+      .select('id, proposal_ids, voter_hash, prev_hash, hash, created_at')
       .eq('ward_id', wardId)
       .order('created_at', { ascending: true })
       .then(must),
     supabase.from('proposals').select('id, title').eq('ward_id', wardId).then(must),
   ]);
   const titles = Object.fromEntries(proposals.map((p) => [p.id, p.title]));
+  const titleOf = (id) => titles[id] || '(removed proposal)';
 
   // Order by following the links from the genesis hash; anything unreachable
   // (e.g. after a deleted or edited vote) is appended in time order.
@@ -42,7 +43,7 @@ router.get('/:wardId', async (req, res) => {
   const chain = ordered.map((v, i) => {
     const recomputed = voteHash({
       voterHash: v.voter_hash,
-      proposalId: v.proposal_id,
+      proposalIds: v.proposal_ids,
       timestamp: new Date(v.created_at).toISOString(), // same format used when hashing
       prevHash: v.prev_hash,
     });
@@ -52,8 +53,8 @@ router.get('/:wardId', async (req, res) => {
     return {
       index: i + 1,
       id: v.id,
-      proposal_id: v.proposal_id,
-      proposal_title: titles[v.proposal_id] || '(unknown proposal)',
+      proposal_ids: v.proposal_ids,
+      proposal_titles: v.proposal_ids.map(titleOf),
       voter_hash: v.voter_hash,
       prev_hash: v.prev_hash,
       hash: v.hash,

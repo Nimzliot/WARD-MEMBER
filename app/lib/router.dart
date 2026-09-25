@@ -7,6 +7,7 @@ import 'screens/assistant_screen.dart';
 import 'screens/audit_screen.dart';
 import 'screens/email_otp_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/ideas_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/phone_otp_screen.dart';
 import 'screens/profile_screen.dart';
@@ -67,6 +68,7 @@ GoRouter buildRouter(AuthProvider auth) => GoRouter(
         // Full-screen pages pushed over the tabs
         GoRoute(path: '/profile', builder: (_, _) => const ProfileScreen()),
         GoRoute(path: '/admin', builder: (_, _) => const AdminScreen()),
+        GoRoute(path: '/ideas', builder: (_, _) => const IdeasScreen()),
         GoRoute(
           path: '/proposal/:id',
           builder: (_, state) => ProposalDetailScreen(proposalId: state.pathParameters['id']!),

@@ -46,26 +46,52 @@ class VoteReceiptSheet extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Center(
-              child: Text(justVoted ? 'Vote recorded!' : 'Your vote receipt',
+              child: Text(justVoted ? 'Ballot recorded!' : 'Your ballot receipt',
                   style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
             ),
-            if (receipt.proposalTitle != null) ...[
-              const SizedBox(height: 4),
-              Center(
-                child: Text(receipt.proposalTitle!,
-                    textAlign: TextAlign.center, style: theme.textTheme.titleMedium),
-              ),
-            ],
             const SizedBox(height: 4),
             Center(
               child: Text(formatDateTime(receipt.createdAt),
                   style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
             ),
-            const SizedBox(height: 20),
-            _HashRow(label: 'Vote hash (your receipt)', value: receipt.hash, copyable: true),
+            const SizedBox(height: 14),
+            // Every project on the ballot + what they cost together
+            Container(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+              decoration: BoxDecoration(
+                color: AppColors.mint,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.mintLine),
+              ),
+              child: Column(children: [
+                for (final t in receipt.proposalTitles)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 3),
+                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      const Icon(Icons.check_circle_rounded, size: 18, color: AppTheme.success),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(t, style: const TextStyle(fontWeight: FontWeight.w700))),
+                    ]),
+                  ),
+                if (receipt.totalCost > 0) ...[
+                  const Divider(height: 18),
+                  Row(children: [
+                    Text(
+                      '${receipt.proposalTitles.length} project${receipt.proposalTitles.length == 1 ? '' : 's'}',
+                      style: const TextStyle(color: AppColors.inkMuted),
+                    ),
+                    const Spacer(),
+                    Text(inr(receipt.totalCost),
+                        style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.forestDark)),
+                  ]),
+                ],
+              ]),
+            ),
+            const SizedBox(height: 18),
+            _HashRow(label: 'Ballot hash (your receipt)', value: receipt.hash, copyable: true),
             _HashRow(
-              label: 'Previous vote hash',
-              value: receipt.isFirstInChain ? '${receipt.prevHash.substring(0, 16)}… (first vote in ward)' : receipt.prevHash,
+              label: 'Previous ballot hash',
+              value: receipt.isFirstInChain ? '${receipt.prevHash.substring(0, 16)}… (first ballot in ward)' : receipt.prevHash,
             ),
             _HashRow(label: 'Anonymous voter ID', value: receipt.voterHash),
             const SizedBox(height: 8),
@@ -76,8 +102,8 @@ class VoteReceiptSheet extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
-                'Your name is never stored with your vote. Each vote\'s hash includes the previous '
-                'vote\'s hash, so changing or deleting any vote breaks the chain. Anyone in your '
+                'Your name is never stored with your ballot. Each ballot\'s hash includes the previous '
+                'ballot\'s hash, so changing or deleting any ballot breaks the chain. Anyone in your '
                 'ward can check this in the Audit Log.',
                 style: theme.textTheme.bodySmall,
               ),
@@ -147,7 +173,7 @@ class _HashRow extends StatelessWidget {
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: value));
                 ScaffoldMessenger.of(context)
-                    .showSnackBar(const SnackBar(content: Text('Vote hash copied')));
+                    .showSnackBar(const SnackBar(content: Text('Ballot hash copied')));
               },
             ),
         ],

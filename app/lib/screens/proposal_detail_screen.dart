@@ -5,17 +5,17 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../models/proposal.dart';
+import '../models/ward.dart';
 import '../providers/auth_provider.dart';
 import '../providers/ward_provider.dart';
 import '../theme.dart';
 import '../utils/categories.dart';
-import '../utils/errors.dart';
 import '../utils/format.dart';
 import '../widgets/ai_widgets.dart';
+import '../widgets/ballot_widgets.dart';
 import '../widgets/brand.dart';
 import '../widgets/budget_breakdown.dart';
 import '../widgets/common.dart';
-import '../widgets/vote_receipt_sheet.dart';
 
 class ProposalDetailScreen extends StatefulWidget {
   const ProposalDetailScreen({super.key, required this.proposalId});
@@ -27,75 +27,6 @@ class ProposalDetailScreen extends StatefulWidget {
 }
 
 class _ProposalDetailScreenState extends State<ProposalDetailScreen> {
-  bool _voting = false;
-  bool _loadingReceipt = false;
-
-  void _snack(String msg, {bool error = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: error ? Theme.of(context).colorScheme.error : null),
-    );
-  }
-
-  Future<void> _vote(Proposal p) async {
-    final wp = context.read<WardProvider>();
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        icon: const Icon(Icons.how_to_vote_rounded),
-        title: const Text('Confirm your vote'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(p.title, style: const TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 4),
-            Text(inr(p.totalCost)),
-            const SizedBox(height: 16),
-            MessageBanner(
-              'You have ONE vote in ${wp.ward?.name ?? 'your ward'}. '
-              'It cannot be changed or withdrawn after you confirm.',
-              isError: false,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Confirm vote')),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-
-    setState(() => _voting = true);
-    try {
-      final receipt = await wp.castVote(p.id);
-      if (mounted) {
-        await showVoteReceipt(context, receipt, justVoted: true, onViewResults: () => context.go('/results'));
-      }
-    } catch (e) {
-      if (mounted) _snack(friendlyError(e), error: true);
-    } finally {
-      if (mounted) setState(() => _voting = false);
-    }
-  }
-
-  Future<void> _showReceipt() async {
-    setState(() => _loadingReceipt = true);
-    try {
-      final receipt = await context.read<WardProvider>().fetchMyReceipt();
-      if (!mounted) return;
-      if (receipt == null) {
-        _snack('No vote found', error: true);
-      } else {
-        await showVoteReceipt(context, receipt);
-      }
-    } catch (e) {
-      if (mounted) _snack(friendlyError(e), error: true);
-    } finally {
-      if (mounted) setState(() => _loadingReceipt = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final wp = context.watch<WardProvider>();
@@ -119,13 +50,7 @@ class _ProposalDetailScreenState extends State<ProposalDetailScreen> {
     return Scaffold(
       bottomNavigationBar: _VoteBar(
         proposal: p,
-        votedForId: wp.myVoteProposalId,
-        votedForTitle: wp.myVotedProposal?.title,
         eligibleReason: _ineligibleReason(auth),
-        voting: _voting,
-        loadingReceipt: _loadingReceipt,
-        onVote: () => _vote(p),
-        onShowReceipt: _showReceipt,
         onAsk: () => showAskSheet(context, p),
       ),
       body: RefreshIndicator(
@@ -248,76 +173,88 @@ class _ProposalDetailScreenState extends State<ProposalDetailScreen> {
   }
 }
 
+/// Bottom action bar. What it shows depends on the voting phase and whether the
+/// resident has already submitted a ballot.
 class _VoteBar extends StatelessWidget {
-  const _VoteBar({
-    required this.proposal,
-    required this.votedForId,
-    required this.votedForTitle,
-    required this.eligibleReason,
-    required this.voting,
-    required this.loadingReceipt,
-    required this.onVote,
-    required this.onShowReceipt,
-    required this.onAsk,
-  });
+  const _VoteBar({required this.proposal, required this.eligibleReason, required this.onAsk});
 
   final Proposal proposal;
-  final String? votedForId;
-  final String? votedForTitle;
   final String? eligibleReason;
-  final bool voting;
-  final bool loadingReceipt;
-  final VoidCallback onVote;
-  final VoidCallback onShowReceipt;
   final VoidCallback onAsk;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
+    final wp = context.watch<WardProvider>();
+    final ward = wp.ward;
+    final phase = ward?.phase ?? WardPhase.open;
 
-    Widget content;
-    if (votedForId == proposal.id) {
-      content = Row(
-        children: [
-          const Icon(Icons.check_circle, color: AppTheme.success),
-          const SizedBox(width: 8),
-          const Expanded(
-            child: Text('You voted for this', style: TextStyle(fontWeight: FontWeight.w600)),
-          ),
-          TextButton.icon(
-            onPressed: loadingReceipt ? null : onShowReceipt,
-            icon: loadingReceipt
-                ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.receipt_long),
-            label: const Text('Receipt'),
-          ),
-        ],
-      );
-    } else if (votedForId != null) {
-      content = Row(
-        children: [
-          Icon(Icons.info_outline, color: scheme.onSurfaceVariant),
+    Widget status(IconData icon, Color color, String text, {Widget? trailing}) => Row(children: [
+          Icon(icon, color: color),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              'You already voted for "${votedForTitle ?? 'another proposal'}"',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
-            ),
+            child: Text(text,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5)),
           ),
-        ],
-      );
+          ?trailing,
+        ]);
+
+    final receiptButton = TextButton.icon(
+      onPressed: () => showMyReceipt(context),
+      icon: const Icon(Icons.receipt_long),
+      label: const Text('Receipt'),
+    );
+
+    Widget content;
+    if (wp.hasVoted) {
+      content = wp.isOnMyBallot(proposal.id)
+          ? status(Icons.check_circle, AppTheme.success, 'On your ballot', trailing: receiptButton)
+          : status(Icons.info_outline, AppColors.inkMuted, 'Not on your ballot', trailing: receiptButton);
+    } else if (phase == WardPhase.closed) {
+      content = status(Icons.lock_clock_outlined, AppColors.inkMuted, 'Voting closed · results final',
+          trailing: TextButton(onPressed: () => context.go('/results'), child: const Text('Results')));
+    } else if (phase == WardPhase.upcoming) {
+      content = Row(children: [
+        const Icon(Icons.schedule_rounded, color: AppColors.forest),
+        const SizedBox(width: 8),
+        const Text('Voting opens in ', style: TextStyle(fontWeight: FontWeight.w600)),
+        Countdown(to: ward!.votingOpensAt!, onDone: wp.load, style: const TextStyle(fontWeight: FontWeight.w800)),
+      ]);
     } else if (eligibleReason != null) {
       content = MessageBanner(eligibleReason!);
     } else {
-      content = PrimaryButton(
-        label: 'Vote for this proposal',
-        icon: Icons.how_to_vote_rounded,
-        loading: voting,
-        onPressed: onVote,
-      );
+      final picked = wp.isPicked(proposal.id);
+      final fits = wp.fits(proposal);
+      content = Row(children: [
+        Expanded(
+          child: SizedBox(
+            height: 52,
+            child: picked
+                ? OutlinedButton.icon(
+                    onPressed: () => wp.togglePick(proposal),
+                    icon: const Icon(Icons.check_rounded),
+                    label: const Text('On ballot', style: TextStyle(fontWeight: FontWeight.w700)),
+                  )
+                : FilledButton.icon(
+                    onPressed: fits ? () => wp.togglePick(proposal) : null,
+                    icon: const Icon(Icons.add_rounded),
+                    label: Text(fits ? 'Add to ballot' : 'Over budget',
+                        style: const TextStyle(fontWeight: FontWeight.w700)),
+                  ),
+          ),
+        ),
+        if (wp.picks.isNotEmpty) ...[
+          const SizedBox(width: 8),
+          SizedBox(
+            height: 52,
+            child: FilledButton.tonal(
+              onPressed: () => showBallotReview(context),
+              child: Text('Review ${wp.picks.length}', style: const TextStyle(fontWeight: FontWeight.w700)),
+            ),
+          ),
+        ],
+      ]);
     }
 
     return Container(

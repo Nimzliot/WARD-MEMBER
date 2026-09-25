@@ -11,6 +11,7 @@ import '../providers/ward_provider.dart';
 import '../theme.dart';
 import '../utils/categories.dart';
 import '../utils/format.dart';
+import '../widgets/ballot_widgets.dart';
 import '../widgets/brand.dart';
 import '../widgets/common.dart';
 
@@ -56,6 +57,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _category == null ? wp.proposals : wp.proposals.where((p) => p.category == _category).toList();
 
     return Scaffold(
+      bottomNavigationBar: const BallotBar(),
       body: RefreshIndicator(
         onRefresh: wp.load,
         child: ListView(
@@ -71,7 +73,9 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _VoteStatusCard(votedFor: wp.myVotedProposal),
+                  if (wp.ward != null) PhaseCard(ward: wp.ward!),
+                  const SizedBox(height: 12),
+                  _IdeasCard(pending: wp.pendingIdeas, total: wp.myIdeas.length, closed: wp.ward?.isClosed ?? false),
                   const SizedBox(height: 24),
                   SectionTitle('Proposals', count: wp.proposals.length),
                   if (categories.length > 1) ...[
@@ -97,7 +101,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       _ProposalCard(
                         proposal: p,
                         pool: wp.ward?.budgetPool ?? 0,
-                        isMyVote: wp.myVoteProposalId == p.id,
+                        isMyVote: wp.isOnMyBallot(p.id),
+                        canPick: wp.canVote,
                       ),
                       const SizedBox(height: 12),
                     ],
@@ -159,7 +164,7 @@ class _PoolSummary extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           over > 0
-              ? 'Requests exceed the pool by ${inrCompact(over)}. Your vote decides what gets built.'
+              ? 'Requests exceed the pool by ${inrCompact(over)}. Your ballot decides what gets built.'
               : 'All proposals fit within the pool.',
           style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 12.5, height: 1.4),
         ),
@@ -220,53 +225,49 @@ class _AssistantBanner extends StatelessWidget {
   }
 }
 
-class _VoteStatusCard extends StatelessWidget {
-  const _VoteStatusCard({required this.votedFor});
+/// "Have an idea?" — residents suggest projects; shows how many await review.
+class _IdeasCard extends StatelessWidget {
+  const _IdeasCard({required this.pending, required this.total, required this.closed});
 
-  final Proposal? votedFor;
+  final int pending;
+  final int total;
+  final bool closed;
 
   @override
   Widget build(BuildContext context) {
-    final voted = votedFor != null;
+    final subtitle = total == 0
+        ? (closed ? 'Voting has closed for this cycle.' : 'Suggest a project. The ward office reviews it for the ballot.')
+        : '$total idea${total == 1 ? '' : 's'} submitted${pending > 0 ? ' · $pending awaiting review' : ''}';
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: voted ? () => context.push('/proposal/${votedFor!.id}') : null,
-        child: IntrinsicHeight(
-          child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Container(width: 5, color: voted ? AppTheme.success : AppColors.leaf),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-                child: Row(children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: voted ? AppTheme.success.withValues(alpha: 0.12) : AppColors.mint,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(voted ? Icons.check_rounded : Icons.how_to_vote_outlined,
-                        color: voted ? AppTheme.success : AppColors.forest, size: 22),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(voted ? 'You have voted' : 'You haven\'t voted yet',
-                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-                      const SizedBox(height: 2),
-                      Text(
-                        voted ? votedFor!.title : 'Pick the one project you want funded most.',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: AppColors.inkMuted, fontSize: 13),
-                      ),
-                    ]),
-                  ),
-                  if (voted) const Icon(Icons.chevron_right, color: AppColors.inkMuted),
-                ]),
-              ),
+        onTap: () => context.push('/ideas'),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(color: AppColors.mint, borderRadius: BorderRadius.circular(12)),
+              child: const Icon(Icons.lightbulb_outline_rounded, color: AppColors.forest, size: 22),
             ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(total == 0 ? 'Have an idea for your ward?' : 'My ideas',
+                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                const SizedBox(height: 2),
+                Text(subtitle, style: const TextStyle(color: AppColors.inkMuted, fontSize: 13, height: 1.35)),
+              ]),
+            ),
+            if (pending > 0)
+              Container(
+                margin: const EdgeInsets.only(right: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(color: AppColors.forest, borderRadius: BorderRadius.circular(20)),
+                child: Text('$pending', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12)),
+              ),
+            const Icon(Icons.chevron_right, color: AppColors.inkMuted),
           ]),
         ),
       ),
@@ -312,11 +313,12 @@ class _FilterChip extends StatelessWidget {
 }
 
 class _ProposalCard extends StatelessWidget {
-  const _ProposalCard({required this.proposal, required this.pool, required this.isMyVote});
+  const _ProposalCard({required this.proposal, required this.pool, required this.isMyVote, required this.canPick});
 
   final Proposal proposal;
   final int pool;
-  final bool isMyVote;
+  final bool isMyVote; // on my submitted ballot
+  final bool canPick; // voting open and I haven't voted → show the + / ✓ button
 
   @override
   Widget build(BuildContext context) {
@@ -347,7 +349,12 @@ class _ProposalCard extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(proposal.category.toUpperCase(),
+                    Text(
+                        proposal.fromResident
+                            ? '${proposal.category.toUpperCase()} · RESIDENT IDEA'
+                            : proposal.category.toUpperCase(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                             fontSize: 10.5, fontWeight: FontWeight.w800, letterSpacing: 0.9, color: AppColors.emerald)),
                     const SizedBox(height: 3),
@@ -363,10 +370,11 @@ class _ProposalCard extends StatelessWidget {
                     child: const Row(mainAxisSize: MainAxisSize.min, children: [
                       Icon(Icons.check_rounded, size: 13, color: Colors.white),
                       SizedBox(width: 3),
-                      Text('Your vote',
+                      Text('On your ballot',
                           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 11)),
                     ]),
                   ),
+                if (canPick) ...[const SizedBox(width: 8), PickButton(proposal: proposal)],
               ]),
               const SizedBox(height: 10),
               Text(proposal.description,

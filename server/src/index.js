@@ -23,6 +23,7 @@ app.use('/api/auth/phone', require('./routes/phone'));
 app.use('/api', requireAuth);
 app.use('/api/votes', require('./routes/votes'));
 app.use('/api/audit', require('./routes/audit'));
+app.use('/api/ideas', require('./routes/ideas'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/ai', require('./routes/ai'));
 

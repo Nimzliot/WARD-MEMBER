@@ -2,7 +2,6 @@
 // ward's own data (proposals, budget lines, votes) and never tells people how to vote.
 const express = require('express');
 const { supabase, must } = require('../supabase');
-const { requireAdmin } = require('../middleware/auth');
 const gemini = require('../lib/gemini');
 
 const router = express.Router();
@@ -55,6 +54,12 @@ function canSeeWard(profile, wardId) {
   return profile.role === 'admin' || profile.ward_id === wardId;
 }
 
+// Pending / rejected ideas are visible only to admins and the resident who submitted them.
+function canSeeProposal(req, p) {
+  if (!canSeeWard(req.profile, p.ward_id)) return false;
+  return req.profile.role === 'admin' || p.status === 'approved' || p.submitted_by === req.user.id;
+}
+
 async function loadProposalContext(proposalId) {
   const proposal = must(
     await supabase.from('proposals').select('*, budget_items(label, amount)').eq('id', proposalId).maybeSingle(),
@@ -63,7 +68,7 @@ async function loadProposalContext(proposalId) {
   const [ward, others] = await Promise.all([
     supabase.from('wards').select('name, budget_pool').eq('id', proposal.ward_id).single().then(must),
     supabase.from('proposals').select('title, category, total_cost').eq('ward_id', proposal.ward_id)
-      .neq('id', proposalId).then(must),
+      .eq('status', 'approved').neq('id', proposalId).then(must),
   ]);
   return { proposal, ward, others };
 }
@@ -95,7 +100,7 @@ router.post('/explain', async (req, res) => {
 
   const ctx = await loadProposalContext(proposalId);
   if (!ctx) return res.status(404).json({ error: 'Proposal not found' });
-  if (!canSeeWard(req.profile, ctx.proposal.ward_id)) return res.status(403).json({ error: 'Not your ward' });
+  if (!canSeeProposal(req, ctx.proposal)) return res.status(403).json({ error: 'Not your ward' });
 
   const key = `explain:${proposalId}:${ctx.proposal.total_cost}:${lang}`;
   const result = await cached(key, 24 * 60 * 60 * 1000, () =>
@@ -132,21 +137,21 @@ async function describeWard(wardId) {
   const [ward, proposals, votes] = await Promise.all([
     supabase.from('wards').select('name, budget_pool').eq('id', wardId).maybeSingle().then(must),
     supabase.from('proposals').select('id, title, category, description, total_cost, budget_items(label, amount)')
-      .eq('ward_id', wardId).order('created_at').then(must),
-    supabase.from('votes').select('proposal_id').eq('ward_id', wardId).then(must),
+      .eq('ward_id', wardId).eq('status', 'approved').order('created_at').then(must),
+    supabase.from('votes').select('proposal_ids').eq('ward_id', wardId).then(must),
   ]);
   if (!ward) return null;
   const counts = {};
-  votes.forEach((v) => { counts[v.proposal_id] = (counts[v.proposal_id] || 0) + 1; });
+  votes.forEach((v) => v.proposal_ids.forEach((id) => { counts[id] = (counts[id] || 0) + 1; }));
   const requested = proposals.reduce((s, p) => s + p.total_cost, 0);
   return [
     `WARD: ${ward.name}. Total ward budget pool: ₹${ward.budget_pool} (${lakh(ward.budget_pool)}).`,
-    `${proposals.length} proposals ask for ${lakh(requested)} in total. Votes cast so far: ${votes.length}.`,
+    `${proposals.length} proposals ask for ${lakh(requested)} in total. Ballots cast so far: ${votes.length}.`,
     'Funding rule: most-voted proposals are funded first, while they still fit in the remaining pool.',
-    'Each resident gets ONE vote in their ward. Votes are anonymous and hash-chained (tamper-evident audit log).',
+    'Split voting: each resident casts ONE ballot and may back several projects, as long as their picks together fit in the ward pool. Ballots are anonymous and hash-chained (tamper-evident audit log).',
     '',
     ...proposals.flatMap((p, i) => [
-      `PROPOSAL ${i + 1}: "${p.title}" (${p.category}) — ${lakh(p.total_cost)}, ${counts[p.id] || 0} votes so far.`,
+      `PROPOSAL ${i + 1}: "${p.title}" (${p.category}) — ${lakh(p.total_cost)}, backed on ${counts[p.id] || 0} ballots so far.`,
       `  ${p.description || ''}`,
       ...[...p.budget_items].sort((a, b) => b.amount - a.amount).map((b) => `  - ${b.label}: ₹${b.amount}`),
     ]),
@@ -166,7 +171,7 @@ router.post('/ask', async (req, res) => {
     if (!UUID_RE.test(String(proposalId))) return res.status(400).json({ error: 'Invalid proposalId' });
     const ctx = await loadProposalContext(proposalId);
     if (!ctx) return res.status(404).json({ error: 'Proposal not found' });
-    if (!canSeeWard(req.profile, ctx.proposal.ward_id)) return res.status(403).json({ error: 'Not your ward' });
+    if (!canSeeProposal(req, ctx.proposal)) return res.status(403).json({ error: 'Not your ward' });
     data = describeProposal(ctx);
   } else {
     const wardId = Number(req.body?.wardId) || req.profile.ward_id;
@@ -196,23 +201,24 @@ ${data}`,
   res.json({ answer });
 });
 
-// ---------- 3. Admin draft assistant ----------
+// ---------- 3. Draft assistant (admin proposals + resident ideas) ----------
 
-router.post('/draft', requireAdmin, async (req, res) => {
+// Admins draft for any ward; residents use it to write up an idea for their own ward.
+router.post('/draft', async (req, res) => {
   const idea = String(req.body?.idea || '').trim().slice(0, 400);
-  const wardId = Number(req.body?.wardId);
+  const wardId = (req.profile.role === 'admin' && Number(req.body?.wardId)) || req.profile.ward_id;
   if (idea.length < 5) return res.status(400).json({ error: 'Describe the project in a sentence' });
 
   const ward = must(await supabase.from('wards').select('name, budget_pool').eq('id', wardId).maybeSingle());
   if (!ward) return res.status(404).json({ error: 'Ward not found' });
 
   const draft = await gemini.ask(
-    `You help municipal officials in India write clear budget proposals for residents to vote on.
+    `You help municipal officials and residents in India write clear budget proposals for residents to vote on.
 - Use realistic 2026 Indian municipal costs in whole rupees.
 - 3 to 6 budget lines that add up to the total. Include installation/labour and, where sensible, maintenance.
 - The title is short (max 60 characters). The description is 1-2 plain sentences saying who benefits.
 - Keep the total well below the ward pool of ₹${ward.budget_pool}.`,
-    `Ward: ${ward.name}\nOfficial's idea: "${idea}"`,
+    `Ward: ${ward.name}\nIdea: "${idea}"`,
     {
       temperature: 0.5,
       schema: {
@@ -256,8 +262,8 @@ router.post('/insight', async (req, res) => {
 
   const [ward, proposals, votes] = await Promise.all([
     supabase.from('wards').select('name, budget_pool').eq('id', wardId).maybeSingle().then(must),
-    supabase.from('proposals').select('id, title, category, total_cost').eq('ward_id', wardId).then(must),
-    supabase.from('votes').select('proposal_id').eq('ward_id', wardId).then(must),
+    supabase.from('proposals').select('id, title, category, total_cost').eq('ward_id', wardId).eq('status', 'approved').then(must),
+    supabase.from('votes').select('proposal_ids').eq('ward_id', wardId).then(must),
   ]);
   if (!ward) return res.status(404).json({ error: 'Ward not found' });
   if (!votes.length) {
@@ -266,7 +272,7 @@ router.post('/insight', async (req, res) => {
 
   // Same funding rule as the app: most votes first (ties → cheaper), fund while it fits.
   const counts = {};
-  votes.forEach((v) => { counts[v.proposal_id] = (counts[v.proposal_id] || 0) + 1; });
+  votes.forEach((v) => v.proposal_ids.forEach((id) => { counts[id] = (counts[id] || 0) + 1; }));
   const ranked = proposals
     .map((p) => ({ ...p, votes: counts[p.id] || 0 }))
     .sort((a, b) => b.votes - a.votes || a.total_cost - b.total_cost);
@@ -277,10 +283,10 @@ router.post('/insight', async (req, res) => {
   });
 
   const snapshot = [
-    `WARD: ${ward.name}. Pool ${lakh(ward.budget_pool)}. Total votes so far: ${votes.length}.`,
+    `WARD: ${ward.name}. Pool ${lakh(ward.budget_pool)}. Ballots cast so far: ${votes.length} (each ballot can back several projects).`,
     'Funding rule: most-voted first; a proposal is funded only if it still fits in the remaining pool.',
     'CURRENT STANDINGS:',
-    ...ranked.map((p, i) => `${i + 1}. "${p.title}" (${p.category}) — ${p.votes} votes (${Math.round((p.votes * 100) / votes.length)}%), cost ${lakh(p.total_cost)}, ${p.funded ? 'FUNDED' : 'not funded'}`),
+    ...ranked.map((p, i) => `${i + 1}. "${p.title}" (${p.category}) — on ${p.votes} ballots (${Math.round((p.votes * 100) / votes.length)}% of voters), cost ${lakh(p.total_cost)}, ${p.funded ? 'FUNDED' : 'not funded'}`),
     `Unallocated money: ${lakh(remaining)}.`,
   ].join('\n');
 

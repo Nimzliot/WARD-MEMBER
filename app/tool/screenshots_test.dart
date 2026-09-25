@@ -30,10 +30,12 @@ import 'package:ward_budget/screens/assistant_screen.dart';
 import 'package:ward_budget/screens/audit_screen.dart';
 import 'package:ward_budget/screens/email_otp_screen.dart';
 import 'package:ward_budget/screens/home_screen.dart';
+import 'package:ward_budget/screens/ideas_screen.dart';
 import 'package:ward_budget/screens/login_screen.dart';
 import 'package:ward_budget/screens/phone_otp_screen.dart';
 import 'package:ward_budget/screens/profile_screen.dart';
 import 'package:ward_budget/screens/profile_setup_screen.dart';
+import 'package:ward_budget/screens/proposal_form_screen.dart';
 import 'package:ward_budget/screens/proposal_detail_screen.dart';
 import 'package:ward_budget/screens/results_screen.dart';
 import 'package:ward_budget/screens/splash_screen.dart';
@@ -43,7 +45,11 @@ import 'package:ward_budget/widgets/vote_receipt_sheet.dart';
 
 // ------------------------------------------------------------------ sample data
 
-final ward = const Ward(id: 1, name: 'Ward 1 – Gandhi Nagar', budgetPool: 7500000);
+final ward = Ward(
+  id: 1, name: 'Ward 1 – Gandhi Nagar', budgetPool: 7500000,
+  votingOpensAt: DateTime.now().subtract(const Duration(days: 4)),
+  votingClosesAt: DateTime.now().add(const Duration(days: 3, hours: 4, minutes: 12)),
+);
 
 BudgetItem _i(String l, int a) => BudgetItem(id: l, label: l, amount: a);
 
@@ -78,6 +84,36 @@ final proposals = [
   ),
 ];
 
+final myIdeas = [
+  Proposal(
+    id: 'i1', wardId: 1, title: 'Bus shelters on Station Road', category: 'Roads & Transport',
+    description: 'Four shelters with benches for the morning school rush.', totalCost: 540000,
+    createdAt: DateTime.now().subtract(const Duration(hours: 5)), status: ProposalStatus.pending, fromResident: true,
+    items: [_i('4 steel shelters with benches', 480000), _i('Installation', 60000)],
+  ),
+  Proposal(
+    id: 'i2', wardId: 1, title: 'Drinking water ATM near the market', category: 'Water & Sanitation',
+    description: 'RO water ATM for vendors and shoppers.', totalCost: 350000,
+    createdAt: DateTime.now().subtract(const Duration(days: 3)), status: ProposalStatus.approved, fromResident: true,
+    reviewNote: 'Approved. Thanks! It is on the ballot now.',
+    items: [_i('RO water ATM', 300000), _i('Plumbing & power', 50000)],
+  ),
+  Proposal(
+    id: 'i3', wardId: 1, title: 'Flyover at MG Road junction', category: 'Roads & Transport',
+    description: 'A flyover to remove the traffic signal.', totalCost: 90000000,
+    createdAt: DateTime.now().subtract(const Duration(days: 6)), status: ProposalStatus.rejected, fromResident: true,
+    reviewNote: 'Costs more than the whole ward pool. Please raise it with the state PWD.',
+    items: [_i('Flyover', 90000000)],
+  ),
+];
+
+Map<String, dynamic> proposalJson(Proposal p) => {
+  'id': p.id, 'ward_id': p.wardId, 'title': p.title, 'description': p.description, 'category': p.category,
+  'total_cost': p.totalCost, 'created_at': p.createdAt.toUtc().toIso8601String(), 'status': p.status.name,
+  'origin': p.fromResident ? 'resident' : 'official', 'review_note': p.reviewNote,
+  'budget_items': [for (final i in p.items) {'id': i.id, 'label': i.label, 'amount': i.amount}],
+};
+
 const profileJson = {
   'id': 'u1', 'full_name': 'Padma Raman', 'email': 'padma@example.com', 'phone': '9876543210',
   'phone_verified': true, 'ward_id': 1, 'resident_id': 'RES-1-1004', 'role': 'admin',
@@ -92,7 +128,7 @@ final auditJson = {
   'chain': [
     for (final (i, t) in ['Resurface MG Road & Lanes 4–7', 'Solar LED Street Lights', 'Resurface MG Road & Lanes 4–7'].indexed)
       {
-        'index': i + 1, 'id': 'v$i', 'proposal_id': 'p1', 'proposal_title': t,
+        'index': i + 1, 'id': 'v$i', 'proposal_ids': ['p1'], 'proposal_titles': i == 1 ? [t, 'Gandhi Maidan Park Revamp'] : [t],
         'voter_hash': h('a${i}c7'), 'prev_hash': i == 0 ? '0' * 64 : h('b${i - 1}e4'), 'hash': h('b${i}e4'),
         'created_at': DateTime(2026, 9, 25, 10, 5 + i * 7).toUtc().toIso8601String(),
         'hash_ok': true, 'link_ok': true,
@@ -140,17 +176,33 @@ class FakeResults extends LiveResults {
   Future<void> refresh() async {}
 }
 
-WardProvider fakeWard({String? myVote = 'p1'}) => WardProvider()
+WardProvider fakeWard({List<String>? myBallot = const ['p1', 'p3'], Set<String> picks = const {}}) => WardProvider()
   ..wardId = 1
   ..ward = ward
   ..proposals = proposals
-  ..myVoteProposalId = myVote;
+  ..myIdeas = myIdeas
+  ..myBallot = myBallot
+  ..picks.addAll(picks);
 
 final apiMock = MockClient((req) async {
   final p = req.url.path;
   Object body = {};
   if (p.startsWith('/api/audit/')) body = auditJson;
   if (p == '/api/votes/me') body = {'vote': null};
+  if (p == '/api/admin/wards') {
+    final open = DateTime.now().subtract(const Duration(days: 4)).toUtc().toIso8601String();
+    body = {
+      'wards': [
+        {'id': 1, 'name': 'Ward 1 – Gandhi Nagar', 'budget_pool': 7500000, 'voting_opens_at': open,
+          'voting_closes_at': DateTime.now().add(const Duration(days: 3)).toUtc().toIso8601String(), 'approved': 4, 'pending': 1, 'ballots': 40},
+        {'id': 2, 'name': 'Ward 2 – Lake View', 'budget_pool': 6000000,
+          'voting_opens_at': DateTime.now().add(const Duration(days: 2)).toUtc().toIso8601String(),
+          'voting_closes_at': DateTime.now().add(const Duration(days: 16)).toUtc().toIso8601String(), 'approved': 4, 'pending': 0, 'ballots': 0},
+        {'id': 3, 'name': 'Ward 3 – Old Market', 'budget_pool': 5000000, 'voting_opens_at': open,
+          'voting_closes_at': DateTime.now().subtract(const Duration(hours: 6)).toUtc().toIso8601String(), 'approved': 3, 'pending': 0, 'ballots': 27},
+      ],
+    };
+  }
   if (p == '/api/ai/insight') {
     body = {
       'headline': 'MG Road leads, Park close behind',
@@ -186,6 +238,7 @@ final supabaseMock = MockClient((req) async {
     ];
   }
   if (p.endsWith('/profiles')) body = profileJson;
+  if (p.endsWith('/proposals')) body = [for (final x in [...myIdeas, ...proposals]) proposalJson(x)];
   return http.Response(jsonEncode(body), 200, request: req, headers: {'content-type': 'application/json; charset=utf-8'});
 });
 
@@ -275,16 +328,26 @@ void main() {
   testWidgets('03b phone otp', (t) => shot(t, '03b_phone_otp',
       app(const PhoneOtpScreen(), stage: AuthStage.signedOut, phone: '9876543210')));
   testWidgets('04 profile setup', (t) => shot(t, '04_profile_setup', app(const ProfileSetupScreen(), stage: AuthStage.needsProfile)));
-  testWidgets('05 home', (t) => shot(t, '05_home', app(const HomeScreen(), tab: 0, wp: fakeWard(myVote: null))));
+  testWidgets('05 home', (t) => shot(t, '05_home', app(const HomeScreen(), tab: 0, wp: fakeWard(myBallot: null))));
+  testWidgets('05b home building ballot', (t) => shot(t, '05b_home_ballot',
+      app(const HomeScreen(), tab: 0, wp: fakeWard(myBallot: null, picks: {'p1', 'p3'})), before: (t) async {
+        await t.drag(find.byType(Scrollable).first, const Offset(0, -560));
+        await settle(t);
+      }));
+  testWidgets('05c ballot review', (t) => shot(t, '05c_ballot_review',
+      app(const HomeScreen(), tab: 0, wp: fakeWard(myBallot: null, picks: {'p1', 'p3'})), before: (t) async {
+        await t.tap(find.text('Review'));
+        await settle(t);
+      }));
   testWidgets('06 home scrolled', (t) => shot(t, '06_home_scrolled', app(const HomeScreen(), tab: 0),
       before: (t) async {
         await t.drag(find.byType(Scrollable).first, const Offset(0, -520));
         await settle(t);
       }));
-  testWidgets('07 proposal', (t) => shot(t, '07_proposal', app(const ProposalDetailScreen(proposalId: 'p1'), wp: fakeWard(myVote: null))));
+  testWidgets('07 proposal', (t) => shot(t, '07_proposal', app(const ProposalDetailScreen(proposalId: 'p1'), wp: fakeWard(myBallot: null))));
   testWidgets('07b proposal voted', (t) => shot(t, '07b_proposal_voted', app(const ProposalDetailScreen(proposalId: 'p1'))));
   testWidgets('08 proposal explain', (t) => shot(t, '08_proposal_explain',
-      app(const ProposalDetailScreen(proposalId: 'p1'), wp: fakeWard(myVote: null)), before: (t) async {
+      app(const ProposalDetailScreen(proposalId: 'p1'), wp: fakeWard(myBallot: null)), before: (t) async {
         await t.tap(find.text('Explain this proposal'));
         await settle(t);
         await t.drag(find.byType(Scrollable).first, const Offset(0, -380));
@@ -300,12 +363,19 @@ void main() {
   testWidgets('12 audit', (t) => shot(t, '12_audit', app(const AuditScreen(), tab: 3)));
   testWidgets('13 profile', (t) => shot(t, '13_profile', app(const ProfileScreen())));
   testWidgets('14 admin', (t) => shot(t, '14_admin', app(const AdminScreen())));
+  testWidgets('14b admin ideas', (t) => shot(t, '14b_admin_ideas', app(const AdminScreen()), before: (t) async {
+        await t.tap(find.text('Ideas'));
+        await settle(t);
+      }));
+  testWidgets('16 my ideas', (t) => shot(t, '16_ideas', app(const IdeasScreen())));
+  testWidgets('17 idea form', (t) => shot(t, '17_idea_form', app(const ProposalFormScreen(mode: ProposalFormMode.idea))));
   testWidgets('15 receipt', (t) => shot(t, '15_receipt', app(Scaffold(
         body: VoteReceiptSheet(
           justVoted: true,
           onViewResults: () {},
           receipt: VoteReceipt(
-            id: 'v', proposalId: 'p1', proposalTitle: 'Resurface MG Road & Lanes 4–7',
+            id: 'v', proposalIds: const ['p1', 'p3'],
+            proposalTitles: const ['Resurface MG Road & Lanes 4–7', 'Gandhi Maidan Park Revamp'], totalCost: 5755000,
             voterHash: h('a3c7'), prevHash: h('b1e4'), hash: h('9f3c2a'), createdAt: DateTime(2026, 9, 25, 10, 40),
           ),
         ),

@@ -12,6 +12,9 @@ class BudgetItem {
       );
 }
 
+/// pending → waiting for admin review; approved → on the ballot; rejected → not.
+enum ProposalStatus { pending, approved, rejected }
+
 class Proposal {
   final String id;
   final int wardId;
@@ -21,6 +24,10 @@ class Proposal {
   final int totalCost; // INR, = sum of items (kept by a DB trigger)
   final DateTime createdAt;
   final List<BudgetItem> items; // largest first
+  final ProposalStatus status;
+  final bool fromResident; // submitted as a resident idea
+  final String? submittedBy;
+  final String? reviewNote; // admin's note to the resident
 
   const Proposal({
     required this.id,
@@ -31,7 +38,13 @@ class Proposal {
     required this.totalCost,
     required this.createdAt,
     required this.items,
+    this.status = ProposalStatus.approved,
+    this.fromResident = false,
+    this.submittedBy,
+    this.reviewNote,
   });
+
+  bool get isApproved => status == ProposalStatus.approved;
 
   factory Proposal.fromMap(Map<String, dynamic> m) => Proposal(
         id: m['id'] as String,
@@ -45,5 +58,9 @@ class Proposal {
             .map((e) => BudgetItem.fromMap(e as Map<String, dynamic>))
             .toList()
           ..sort((a, b) => b.amount.compareTo(a.amount)),
+        status: ProposalStatus.values.asNameMap()[m['status'] as String? ?? 'approved'] ?? ProposalStatus.approved,
+        fromResident: m['origin'] == 'resident',
+        submittedBy: m['submitted_by'] as String?,
+        reviewNote: m['review_note'] as String?,
       );
 }

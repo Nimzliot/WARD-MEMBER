@@ -52,11 +52,13 @@ class _ResultsScreenState extends State<ResultsScreen> {
     final results = _results;
 
     Widget header({Widget? child}) => BrandHeader(
-          title: 'Live results',
+          title: (wp.ward?.isClosed ?? false) ? 'Final results' : 'Live results',
           subtitle: wp.ward?.name,
           actions: [
             if (results != null)
-              ListenableBuilder(listenable: results, builder: (context, _) => _LivePill(live: results.live)),
+              ListenableBuilder(
+                  listenable: results,
+                  builder: (context, _) => _LivePill(live: results.live, isFinal: wp.ward?.isClosed ?? false)),
             const SizedBox(width: 8),
             InitialsAvatar(name: profile?.fullName, onTap: () => context.push('/profile')),
           ],
@@ -91,10 +93,18 @@ class _ResultsScreenState extends State<ResultsScreen> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
                   child: Column(children: [
+                    if (wp.ward!.isClosed) ...[
+                      MessageBanner(
+                        'Voting closed on ${formatDateTime(wp.ward!.votingClosesAt!)}. These results are final: '
+                        'the funded projects below go ahead.',
+                        isError: false,
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                     // Ward Assistant reads the live numbers (re-runs as votes come in)
                     InsightCard(wardId: wp.ward!.id, totalVotes: results.totalVotes),
                     if (results.totalVotes > 0) const SizedBox(height: 16),
-                    _VotesCard(alloc: alloc, totalVotes: results.totalVotes, myVoteId: wp.myVoteProposalId),
+                    _VotesCard(alloc: alloc, totalVotes: results.totalVotes, myBallot: {...?wp.myBallot}),
                     const SizedBox(height: 16),
                     _AllocationCard(alloc: alloc),
                   ]),
@@ -109,9 +119,10 @@ class _ResultsScreenState extends State<ResultsScreen> {
 }
 
 class _LivePill extends StatelessWidget {
-  const _LivePill({required this.live});
+  const _LivePill({required this.live, this.isFinal = false});
 
   final bool live;
+  final bool isFinal;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -124,10 +135,10 @@ class _LivePill extends StatelessWidget {
           Container(
             width: 8,
             height: 8,
-            decoration: BoxDecoration(color: live ? AppColors.leaf : Colors.white54, shape: BoxShape.circle),
+            decoration: BoxDecoration(color: isFinal || live ? AppColors.leaf : Colors.white54, shape: BoxShape.circle),
           ),
           const SizedBox(width: 6),
-          Text(live ? 'LIVE' : 'Connecting…',
+          Text(isFinal ? 'FINAL' : live ? 'LIVE' : 'Connecting…',
               style: const TextStyle(
                   color: Colors.white, fontWeight: FontWeight.w800, fontSize: 11.5, letterSpacing: 0.6)),
         ]),
@@ -166,7 +177,7 @@ class _Turnout extends StatelessWidget {
         Row(children: [
           Icon(Icons.schedule, size: 14, color: soft),
           const SizedBox(width: 5),
-          Text(results.lastVoteAt == null ? 'No votes yet' : 'Last vote ${timeAgo(results.lastVoteAt!)}',
+          Text(results.lastVoteAt == null ? 'No ballots yet' : 'Last ballot ${timeAgo(results.lastVoteAt!)}',
               style: TextStyle(color: soft, fontSize: 12.5)),
         ]),
       ],
@@ -218,11 +229,11 @@ class _SectionCard extends StatelessWidget {
 // ---------------------------------------------------------------- Votes (bar chart)
 
 class _VotesCard extends StatelessWidget {
-  const _VotesCard({required this.alloc, required this.totalVotes, required this.myVoteId});
+  const _VotesCard({required this.alloc, required this.totalVotes, required this.myBallot});
 
   final Allocation alloc;
-  final int totalVotes;
-  final String? myVoteId;
+  final int totalVotes; // ballots cast
+  final Set<String> myBallot;
 
   @override
   Widget build(BuildContext context) {
@@ -235,7 +246,7 @@ class _VotesCard extends StatelessWidget {
 
     return _SectionCard(
       title: 'Votes by proposal',
-      subtitle: '$totalVotes vote${totalVotes == 1 ? '' : 's'} cast · updates live',
+      subtitle: '$totalVotes ballot${totalVotes == 1 ? '' : 's'} cast · each can back several projects',
       icon: Icons.bar_chart_rounded,
       child: Column(
         children: [
@@ -294,7 +305,7 @@ class _VotesCard extends StatelessWidget {
                         toY: r.votes.toDouble(),
                         width: 26,
                         // one series → one colour; the resident's own choice is highlighted
-                        color: r.proposal.id == myVoteId ? AppColors.emerald : AppColors.forest,
+                        color: myBallot.contains(r.proposal.id) ? AppColors.emerald : AppColors.forest,
                         borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
                       ),
                     ]),
@@ -314,14 +325,14 @@ class _VotesCard extends StatelessWidget {
                   height: 28,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: r.proposal.id == myVoteId ? AppColors.emerald : AppColors.mint,
+                    color: myBallot.contains(r.proposal.id) ? AppColors.emerald : AppColors.mint,
                     shape: BoxShape.circle,
                   ),
                   child: Text('#${r.slot + 1}',
                       style: TextStyle(
                         fontSize: 10.5,
                         fontWeight: FontWeight.w800,
-                        color: r.proposal.id == myVoteId ? Colors.white : AppColors.forest,
+                        color: myBallot.contains(r.proposal.id) ? Colors.white : AppColors.forest,
                       )),
                 ),
                 const SizedBox(width: 10),
@@ -331,7 +342,7 @@ class _VotesCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
-                    if (r.proposal.id == myVoteId)
+                    if (myBallot.contains(r.proposal.id))
                       const Row(children: [
                         Icon(Icons.check_circle, size: 12, color: AppTheme.success),
                         SizedBox(width: 3),

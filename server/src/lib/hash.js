@@ -17,8 +17,12 @@ function safeEqual(a, b) {
   return A.length === B.length && crypto.timingSafeEqual(A, B);
 }
 
-// hash = SHA-256(voter_hash + proposal_id + timestamp + prev_hash)
-const voteHash = ({ voterHash, proposalId, timestamp, prevHash }) =>
-  sha256(voterHash + proposalId + timestamp + prevHash);
+// A ballot's ids in canonical order, joined: 'id1,id2,...'.
+// A one-project ballot is just that id, so it hashes exactly like the old single vote.
+const ballotKey = (proposalIds) => [...proposalIds].map(String).sort().join(',');
 
-module.exports = { GENESIS_HASH, sha256, generateOtp, otpHash, safeEqual, voteHash };
+// hash = SHA-256(voter_hash + sorted_proposal_ids.join(',') + timestamp + prev_hash)
+const voteHash = ({ voterHash, proposalIds, timestamp, prevHash }) =>
+  sha256(voterHash + ballotKey(proposalIds) + timestamp + prevHash);
+
+module.exports = { GENESIS_HASH, sha256, generateOtp, otpHash, safeEqual, ballotKey, voteHash };

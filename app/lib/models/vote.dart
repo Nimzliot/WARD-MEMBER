@@ -1,9 +1,11 @@
-/// A vote as returned by the Node API (POST /api/votes, GET /api/votes/me).
-/// Contains no personal data — only the anonymised voter hash and chain hashes.
+/// A ballot as returned by the Node API (POST /api/votes, GET /api/votes/me).
+/// One ballot backs one or more projects. Contains no personal data — only the
+/// anonymised voter hash and chain hashes.
 class VoteReceipt {
   final String id;
-  final String proposalId;
-  final String? proposalTitle;
+  final List<String> proposalIds;
+  final List<String> proposalTitles;
+  final int totalCost; // INR, sum of the backed projects
   final String voterHash;
   final String prevHash;
   final String hash;
@@ -11,8 +13,9 @@ class VoteReceipt {
 
   const VoteReceipt({
     required this.id,
-    required this.proposalId,
-    this.proposalTitle,
+    required this.proposalIds,
+    required this.proposalTitles,
+    required this.totalCost,
     required this.voterHash,
     required this.prevHash,
     required this.hash,
@@ -23,8 +26,9 @@ class VoteReceipt {
 
   factory VoteReceipt.fromMap(Map<String, dynamic> m) => VoteReceipt(
         id: m['id'] as String,
-        proposalId: m['proposal_id'] as String,
-        proposalTitle: m['proposal_title'] as String?,
+        proposalIds: List<String>.from(m['proposal_ids'] as List? ?? const []),
+        proposalTitles: List<String>.from(m['proposal_titles'] as List? ?? const []),
+        totalCost: (m['total_cost'] as num?)?.toInt() ?? 0,
         voterHash: m['voter_hash'] as String,
         prevHash: m['prev_hash'] as String,
         hash: m['hash'] as String,

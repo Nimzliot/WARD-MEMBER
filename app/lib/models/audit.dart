@@ -3,7 +3,7 @@
 class AuditEntry {
   final int index;
   final String id;
-  final String proposalTitle;
+  final List<String> proposalTitles; // every project on this ballot
   final String voterHash;
   final String prevHash;
   final String hash;
@@ -14,7 +14,7 @@ class AuditEntry {
   const AuditEntry({
     required this.index,
     required this.id,
-    required this.proposalTitle,
+    required this.proposalTitles,
     required this.voterHash,
     required this.prevHash,
     required this.hash,
@@ -24,11 +24,12 @@ class AuditEntry {
   });
 
   bool get valid => hashOk && linkOk;
+  String get proposalTitle => proposalTitles.join(' · ');
 
   factory AuditEntry.fromMap(Map<String, dynamic> m) => AuditEntry(
         index: m['index'] as int,
         id: m['id'] as String,
-        proposalTitle: m['proposal_title'] as String? ?? '',
+        proposalTitles: List<String>.from(m['proposal_titles'] as List? ?? const []),
         voterHash: m['voter_hash'] as String,
         prevHash: m['prev_hash'] as String,
         hash: m['hash'] as String,

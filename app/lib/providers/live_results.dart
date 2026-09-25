@@ -17,8 +17,8 @@ class LiveResults extends ChangeNotifier {
   Timer? _fallbackPoll;
   bool _disposed = false;
 
-  Map<String, int> counts = {}; // proposal_id → votes
-  int totalVotes = 0;
+  Map<String, int> counts = {}; // proposal_id → ballots that back it
+  int totalVotes = 0; // ballots cast (one per resident)
   int eligible = 0; // fully verified residents in the ward
   DateTime? lastVoteAt;
   bool loading = true;
@@ -40,15 +40,16 @@ class LiveResults extends ChangeNotifier {
     try {
       final r = await Future.wait<dynamic>([
         // Clients may not read votes.user_id, so select explicit columns.
-        _sb.from('votes').select('proposal_id, created_at').eq('ward_id', wardId),
+        _sb.from('votes').select('proposal_ids, created_at').eq('ward_id', wardId),
         _sb.rpc('ward_turnout', params: {'p_ward_id': wardId}),
       ]);
       final votes = (r[0] as List).cast<Map<String, dynamic>>();
       final next = <String, int>{};
       DateTime? last;
       for (final v in votes) {
-        final pid = v['proposal_id'] as String;
-        next[pid] = (next[pid] ?? 0) + 1;
+        for (final pid in (v['proposal_ids'] as List).cast<String>()) {
+          next[pid] = (next[pid] ?? 0) + 1;
+        }
         final at = DateTime.parse(v['created_at'] as String);
         if (last == null || at.isAfter(last)) last = at;
       }
@@ -108,7 +109,7 @@ class ResultRow {
 
   final Proposal proposal;
   final int slot; // fixed colour slot (proposal's position in the ward list)
-  final int votes;
+  final int votes; // ballots backing this project
   bool funded = false;
 }
 
