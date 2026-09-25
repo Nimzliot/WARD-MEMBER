@@ -48,7 +48,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     if (wp.error != null && wp.proposals.isEmpty) {
       return Scaffold(
-        body: Column(children: [header, Expanded(child: ErrorView(message: wp.error!, onRetry: wp.load))]),
+        body: Column(children: [header, Expanded(child: ErrorView(message: wp.error, error: wp.failure, onRetry: wp.load))]),
       );
     }
 

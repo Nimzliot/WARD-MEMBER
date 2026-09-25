@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -14,6 +15,7 @@ import '../utils/errors.dart';
 import '../utils/format.dart';
 import '../widgets/brand.dart';
 import '../widgets/common.dart';
+import '../widgets/failure_view.dart';
 import 'proposal_form_screen.dart';
 
 /// Admins only (guarded in router.dart and again by the server).
@@ -45,6 +47,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   List<Proposal> _proposals = [];
   bool _loading = true;
   String? _error;
+  Object? _failure;
 
   @override
   void initState() {
@@ -77,6 +80,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       if (mounted) {
         setState(() {
           _error = friendlyError(e);
+          _failure = e;
           _loading = false;
         });
       }
@@ -93,6 +97,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       await _load();
       wp.load();
     } catch (e) {
+      if (mounted && await showFailure(context, e)) return;
       messenger.showSnackBar(SnackBar(content: Text(friendlyError(e))));
     }
   }
@@ -131,6 +136,13 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
           title: 'Admin panel',
           subtitle: 'Wards, proposals, ideas and people',
           bottomPadding: 0,
+          actions: [
+            HeaderIconButton(
+              icon: Icons.report_gmailerrorred_rounded,
+              tooltip: 'Error pages',
+              onPressed: () => GoRouter.of(context).push('/admin/errors'),
+            ),
+          ],
           child: TabBar(
             controller: _tabs,
             isScrollable: true,
@@ -166,7 +178,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
           child: _loading
               ? const Center(child: CircularProgressIndicator())
               : _error != null
-                  ? ErrorView(message: _error!, onRetry: _load)
+                  ? ErrorView(message: _error, error: _failure, onRetry: _load)
                   : TabBarView(controller: _tabs, children: [
                       _wardsTab(),
                       _proposalsTab(),
@@ -743,7 +755,10 @@ class _PeopleTabState extends State<_PeopleTab> with AutomaticKeepAliveClientMix
           if (_loading)
             const Padding(padding: EdgeInsets.all(32), child: Center(child: CircularProgressIndicator()))
           else if (_error != null)
-            ErrorView(message: _error!, onRetry: _load)
+            Column(children: [
+              MessageBanner(_error!),
+              TextButton.icon(onPressed: _load, icon: const Icon(Icons.refresh), label: const Text('Retry')),
+            ])
           else if (_users.isEmpty)
             const EmptyView(icon: Icons.person_search_outlined, message: 'Nobody found.')
           else

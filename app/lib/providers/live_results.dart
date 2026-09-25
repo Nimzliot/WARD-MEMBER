@@ -24,6 +24,7 @@ class LiveResults extends ChangeNotifier {
   bool loading = true;
   bool live = false; // Realtime channel subscribed
   String? error;
+  Object? failure; // raw error behind [error], for the failure page
 
   double get turnout => eligible == 0 ? 0 : totalVotes / eligible;
 
@@ -59,8 +60,10 @@ class LiveResults extends ChangeNotifier {
       lastVoteAt = last;
       eligible = t.isEmpty ? 0 : ((t.first as Map)['eligible'] as num).toInt();
       error = null;
+      failure = null;
     } catch (e) {
       error = friendlyError(e);
+      failure = e;
     }
     loading = false;
     _notify();

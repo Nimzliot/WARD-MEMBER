@@ -25,6 +25,7 @@ class WardProvider extends ChangeNotifier {
   final Set<String> picks = {}; // ballot being built (before submitting)
   bool loading = false;
   String? error;
+  Object? failure; // raw error behind [error], for the failure page
 
   RealtimeChannel? _channel;
   Timer? _debounce;
@@ -54,6 +55,7 @@ class WardProvider extends ChangeNotifier {
     if (id == null) return;
     loading = true;
     error = null;
+    failure = null;
     notifyListeners();
     try {
       final results = await Future.wait<dynamic>([
@@ -80,6 +82,7 @@ class WardProvider extends ChangeNotifier {
       picks.removeWhere((pid) => byId(pid) == null);
     } catch (e) {
       error = friendlyError(e);
+      failure = e;
     }
     loading = false;
     notifyListeners();

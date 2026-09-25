@@ -9,6 +9,7 @@ import 'providers/ward_provider.dart';
 import 'router.dart';
 import 'theme.dart';
 import 'widgets/app_logo.dart';
+import 'widgets/failure_view.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,8 +21,16 @@ Future<void> main() async {
 
   await Supabase.initialize(url: AppConfig.supabaseUrl, publishableKey: AppConfig.supabaseAnonKey);
 
+  // A widget that throws while building shows the crash page instead of Flutter's red screen.
+  ErrorWidget.builder = (details) => CrashView(details: details);
+
+  runApp(RestartScope(builder: _appTree));
+}
+
+/// Providers + app. Rebuilt from scratch by RestartScope ("Restart app" on the crash page).
+Widget _appTree() {
   final auth = AuthProvider();
-  runApp(MultiProvider(
+  return MultiProvider(
     providers: [
       ChangeNotifierProvider.value(value: auth),
       // Ward data follows the signed-in, fully-onboarded user's ward.
@@ -35,7 +44,7 @@ Future<void> main() async {
       ),
     ],
     child: WardBudgetApp(auth: auth),
-  ));
+  );
 }
 
 class WardBudgetApp extends StatefulWidget {

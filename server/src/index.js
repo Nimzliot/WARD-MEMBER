@@ -27,20 +27,20 @@ app.use('/api/ideas', require('./routes/ideas'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/ai', require('./routes/ai'));
 
-app.use((req, res) => res.status(404).json({ error: 'Not found' }));
+app.use((req, res) => res.status(404).json({ error: 'Not found', code: 'NOT_FOUND' }));
 
 // Express 5 forwards errors thrown in async handlers here.
 app.use((err, req, res, next) => {
   if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'Invalid JSON body' });
   // Gemini errors (see lib/gemini.js): missing key, quota, blocked, bad JSON
-  if (err.status === 503) return res.status(503).json({ error: err.message });
+  if (err.status === 503) return res.status(503).json({ error: err.message, code: 'AI_UNAVAILABLE' });
   if (err.config?.url?.includes('generativelanguage') || err.status === 502 || err instanceof SyntaxError) {
     console.error('Gemini error:', err.response?.status, JSON.stringify(err.response?.data || err.message).slice(0, 300));
     const busy = err.response?.status === 429;
-    return res.status(502).json({ error: busy ? 'Ward Assistant is busy. Try again in a minute.' : 'Ward Assistant could not answer right now. Please try again.' });
+    return res.status(502).json({ error: busy ? 'Ward Assistant is busy. Try again in a minute.' : 'Ward Assistant could not answer right now. Please try again.', code: 'AI_UNAVAILABLE' });
   }
   console.error(err);
-  res.status(500).json({ error: 'Something went wrong on the server' });
+  res.status(500).json({ error: 'Something went wrong on the server', code: 'SERVER_ERROR' });
 });
 
 app.listen(cfg.port, '0.0.0.0', () => {

@@ -7,6 +7,7 @@ import 'screens/app_shell.dart';
 import 'screens/assistant_screen.dart';
 import 'screens/audit_screen.dart';
 import 'screens/email_otp_screen.dart';
+import 'screens/error_gallery_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/ideas_screen.dart';
 import 'screens/login_screen.dart';
@@ -16,6 +17,8 @@ import 'screens/profile_setup_screen.dart';
 import 'screens/proposal_detail_screen.dart';
 import 'screens/results_screen.dart';
 import 'screens/splash_screen.dart';
+import 'utils/failure.dart';
+import 'widgets/failure_view.dart';
 
 const _onboardingRoutes = {'/splash', '/login', '/email-otp', '/phone-otp', '/profile-setup'};
 
@@ -39,10 +42,14 @@ GoRouter buildRouter(AuthProvider auth) => GoRouter(
           case AuthStage.needsProfile:
             return loc == '/profile-setup' ? null : '/profile-setup';
           case AuthStage.ready:
-            if (loc == '/admin' && !(auth.profile?.isAdmin ?? false)) return '/home';
+            if (loc.startsWith('/admin') && !(auth.profile?.isAdmin ?? false)) return '/home';
             return _onboardingRoutes.contains(loc) ? '/home' : null;
         }
       },
+      // Unknown links → 404 page
+      errorBuilder: (_, state) => FailureScreen(
+        failure: AppFailure.of(FailureKind.notFound, detail: 'No page at ${state.uri}'),
+      ),
       routes: [
         GoRoute(path: '/splash', builder: (_, _) => const SplashScreen()),
         GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
@@ -71,6 +78,7 @@ GoRouter buildRouter(AuthProvider auth) => GoRouter(
         GoRoute(path: '/profile', builder: (_, _) => const ProfileScreen()),
         GoRoute(path: '/admin', builder: (_, _) => const AdminScreen()),
         GoRoute(path: '/ideas', builder: (_, _) => const IdeasScreen()),
+        GoRoute(path: '/admin/errors', builder: (_, _) => const ErrorGalleryScreen()),
         GoRoute(
           path: '/proposal/:id',
           builder: (_, state) => ProposalDetailScreen(proposalId: state.pathParameters['id']!),

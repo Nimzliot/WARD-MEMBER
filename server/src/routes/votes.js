@@ -49,10 +49,10 @@ router.post('/', async (req, res) => {
 
   // Eligibility: verified by ONE method (email code or SMS code) + completed profile
   if (!user.email_confirmed_at && !profile.phone_verified) {
-    return res.status(403).json({ error: 'Verify your email or mobile number first' });
+    return res.status(403).json({ error: 'Verify your email or mobile number first', code: 'NOT_ELIGIBLE' });
   }
   if (!profile.full_name || !profile.ward_id || !profile.resident_id) {
-    return res.status(403).json({ error: 'Complete your profile before voting' });
+    return res.status(403).json({ error: 'Complete your profile before voting', code: 'NOT_ELIGIBLE' });
   }
 
   if (!proposalIds.length) return res.status(400).json({ error: 'Pick at least one project' });
@@ -64,31 +64,32 @@ router.post('/', async (req, res) => {
     await supabase.from('wards').select('id, budget_pool, voting_opens_at, voting_closes_at')
       .eq('id', profile.ward_id).maybeSingle(),
   );
-  if (!ward) return res.status(404).json({ error: 'Ward not found' });
+  if (!ward) return res.status(404).json({ error: 'Ward not found', code: 'NOT_FOUND' });
   const phase = wardPhase(ward);
   if (phase === 'upcoming') {
-    return res.status(403).json({ error: `Voting opens on ${fmtDate(ward.voting_opens_at)}` });
+    return res.status(403).json({ error: `Voting opens on ${fmtDate(ward.voting_opens_at)}`, code: 'VOTING_NOT_OPEN', opens_at: ward.voting_opens_at });
   }
   if (phase === 'closed') {
-    return res.status(403).json({ error: `Voting closed on ${fmtDate(ward.voting_closes_at)}. Results are final.` });
+    return res.status(403).json({ error: `Voting closed on ${fmtDate(ward.voting_closes_at)}. Results are final.`, code: 'VOTING_CLOSED' });
   }
 
   // Every project must be an approved proposal in the resident's own ward
   const proposals = must(
     await supabase.from('proposals').select('id, ward_id, title, status, total_cost').in('id', proposalIds),
   );
-  if (proposals.length !== proposalIds.length) return res.status(404).json({ error: 'A project on your ballot no longer exists' });
+  if (proposals.length !== proposalIds.length) return res.status(404).json({ error: 'A project on your ballot no longer exists', code: 'BALLOT_CHANGED' });
   if (proposals.some((p) => p.ward_id !== profile.ward_id)) {
-    return res.status(403).json({ error: 'You can only vote on proposals in your own ward' });
+    return res.status(403).json({ error: 'You can only vote on proposals in your own ward', code: 'NOT_YOUR_WARD' });
   }
   if (proposals.some((p) => p.status !== 'approved')) {
-    return res.status(403).json({ error: 'A project on your ballot is not on the ballot any more' });
+    return res.status(403).json({ error: 'A project on your ballot is not on the ballot any more', code: 'BALLOT_CHANGED' });
   }
 
   // Budget cap: the ballot must be something the ward could actually afford
   const totalCost = proposals.reduce((s, p) => s + p.total_cost, 0);
   if (totalCost > ward.budget_pool) {
     return res.status(400).json({
+      code: 'OVER_BUDGET',
       error: `Your picks cost ₹${totalCost.toLocaleString('en-IN')}, more than the ward's ₹${ward.budget_pool.toLocaleString('en-IN')} budget`,
     });
   }
@@ -96,7 +97,7 @@ router.post('/', async (req, res) => {
   const existing = must(
     await supabase.from('votes').select('id').eq('user_id', user.id).eq('ward_id', profile.ward_id).maybeSingle(),
   );
-  if (existing) return res.status(409).json({ error: 'You have already voted in this ward' });
+  if (existing) return res.status(409).json({ error: 'You have already voted in this ward', code: 'ALREADY_VOTED' });
 
   const voterHash = sha256(user.id + cfg.voteSalt);
   const sortedIds = ballotKey(proposalIds).split(','); // canonical order = the order that is hashed
@@ -129,13 +130,13 @@ router.post('/', async (req, res) => {
       });
     }
     if (error.code === '23505' && error.message.includes('user_id')) {
-      return res.status(409).json({ error: 'You have already voted in this ward' });
+      return res.status(409).json({ error: 'You have already voted in this ward', code: 'ALREADY_VOTED' });
     }
     if (error.code !== '23505') throw error;
     // prev_hash collision → chain moved on; retry
   }
 
-  res.status(503).json({ error: 'Too many votes at once. Please try again.' });
+  res.status(503).json({ error: 'Too many votes at once. Please try again.', code: 'SERVER_BUSY' });
 });
 
 // GET /api/votes/me → the caller's own ballot receipt in their ward (or null)

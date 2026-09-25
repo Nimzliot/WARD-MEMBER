@@ -18,6 +18,7 @@ import '../theme.dart';
 import '../widgets/ai_widgets.dart';
 import '../widgets/brand.dart';
 import '../widgets/common.dart';
+import '../widgets/failure_view.dart';
 
 enum ProposalFormMode {
   idea, // resident suggests a project for their own ward (goes to review)
@@ -206,6 +207,7 @@ class _ProposalFormScreenState extends State<ProposalFormScreen> {
       messenger.showSnackBar(SnackBar(content: Text(message)));
       Navigator.pop(context, true);
     } catch (e) {
+      if (mounted && await showFailure(context, e, onRetry: () => _publish(approve: approve))) return;
       if (mounted) setState(() => _error = friendlyError(e));
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -233,7 +235,7 @@ class _ProposalFormScreenState extends State<ProposalFormScreen> {
                 }
                 if (snap.hasError) {
                   return ErrorView(
-                    message: friendlyError(snap.error!),
+                    error: snap.error,
                     onRetry: () => setState(() => _wards = _loadWards()),
                   );
                 }

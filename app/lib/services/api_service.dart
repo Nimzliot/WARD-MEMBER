@@ -60,9 +60,18 @@ class ApiService {
       // Generous timeout: a free Render instance can take ~50 s to wake up.
       res = await request.timeout(const Duration(seconds: 60));
     } on TimeoutException {
-      throw ApiException(0, 'The server took too long to respond. Please try again.');
-    } catch (_) {
-      throw ApiException(0, 'Cannot reach the server at ${AppConfig.apiBaseUrl}. Is it running?');
+      throw ApiException(0, 'The server took too long to respond. Please try again.', {'code': 'SERVER_DOWN'});
+    } catch (e) {
+      // No DNS / no route → the phone is offline; anything else → our server is unreachable.
+      final text = '$e'.toLowerCase();
+      final offline = text.contains('failed host lookup') ||
+          text.contains('network is unreachable') ||
+          text.contains('no address associated');
+      throw ApiException(
+        0,
+        offline ? 'No internet connection.' : 'Cannot reach the server at ${AppConfig.apiBaseUrl}. Is it running?',
+        {'code': offline ? 'OFFLINE' : 'SERVER_DOWN', 'raw': '$e'},
+      );
     }
 
     Map<String, dynamic> data = {};
@@ -71,6 +80,11 @@ class ApiService {
       if (decoded is Map<String, dynamic>) data = decoded;
     } catch (_) {}
 
+    // A non-JSON error page (e.g. ngrok/Render "tunnel offline" HTML) means our API isn't there.
+    if (res.statusCode >= 400 && data.isEmpty) {
+      throw ApiException(res.statusCode, 'The ward server is not responding (${res.statusCode}).',
+          {'code': 'SERVER_DOWN', 'raw': res.body.length > 300 ? res.body.substring(0, 300) : res.body});
+    }
     if (res.statusCode >= 400) {
       throw ApiException(
         res.statusCode,

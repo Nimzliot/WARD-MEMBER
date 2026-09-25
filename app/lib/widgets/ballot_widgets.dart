@@ -10,8 +10,10 @@ import '../models/ward.dart';
 import '../providers/ward_provider.dart';
 import '../theme.dart';
 import '../utils/errors.dart';
+import '../utils/failure.dart';
 import '../utils/format.dart';
 import 'common.dart';
+import 'failure_view.dart';
 import 'vote_receipt_sheet.dart';
 
 /// "2d 04h 13m" / "13m 09s" until [to]; rebuilds itself every second.
@@ -186,6 +188,7 @@ Future<void> showMyReceipt(BuildContext context) async {
       await showVoteReceipt(context, receipt);
     }
   } catch (e) {
+    if (context.mounted && await showFailure(context, e)) return;
     messenger.showSnackBar(SnackBar(content: Text(friendlyError(e))));
   }
 }
@@ -336,6 +339,16 @@ class _BallotReviewSheetState extends State<_BallotReviewSheet> {
       if (!rootContext.mounted) return;
       await showVoteReceipt(rootContext, receipt, justVoted: true, onViewResults: () => router.go('/results'));
     } catch (e) {
+      if (!mounted) return;
+      final nav = Navigator.of(context);
+      final kind = AppFailure.from(e).kind;
+      // Already voted / voting closed / not open: this ballot can't be sent any more → close the sheet.
+      if (const {FailureKind.alreadyVoted, FailureKind.votingClosed, FailureKind.votingNotOpen}.contains(kind)) {
+        nav.pop();
+        if (rootContext.mounted) await showFailure(rootContext, e);
+        return;
+      }
+      if (await showFailure(context, e, onRetry: _submit)) return;
       if (mounted) setState(() => _error = friendlyError(e));
     } finally {
       if (mounted) setState(() => _sending = false);

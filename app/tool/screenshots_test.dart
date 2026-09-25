@@ -42,6 +42,9 @@ import 'package:ward_budget/screens/splash_screen.dart';
 import 'package:ward_budget/services/api_service.dart';
 import 'package:ward_budget/theme.dart';
 import 'package:ward_budget/widgets/vote_receipt_sheet.dart';
+import 'package:ward_budget/screens/error_gallery_screen.dart';
+import 'package:ward_budget/utils/failure.dart';
+import 'package:ward_budget/widgets/failure_view.dart';
 
 // ------------------------------------------------------------------ sample data
 
@@ -369,6 +372,21 @@ void main() {
       }));
   testWidgets('16 my ideas', (t) => shot(t, '16_ideas', app(const IdeasScreen())));
   testWidgets('17 idea form', (t) => shot(t, '17_idea_form', app(const ProposalFormScreen(mode: ProposalFormMode.idea))));
+  for (final (name, kind, retry) in [
+    ('20_err_404', FailureKind.notFound, false),
+    ('21_err_offline', FailureKind.offline, true),
+    ('22_err_server_down', FailureKind.serverDown, true),
+    ('23_err_session', FailureKind.sessionExpired, false),
+    ('24_err_voting_closed', FailureKind.votingClosed, false),
+    ('25_err_not_open', FailureKind.votingNotOpen, false),
+    ('26_err_already_voted', FailureKind.alreadyVoted, false),
+    ('27_err_crash', FailureKind.crash, false),
+    ('28_err_rate_limited', FailureKind.rateLimited, true),
+  ]) {
+    testWidgets(name, (t) => shot(t, name,
+        app(FailureScreen(failure: ErrorGalleryScreen.sample(kind), onRetry: retry ? () {} : null))));
+  }
+  testWidgets('29 error gallery', (t) => shot(t, '29_err_gallery', app(const ErrorGalleryScreen())));
   testWidgets('15 receipt', (t) => shot(t, '15_receipt', app(Scaffold(
         body: VoteReceiptSheet(
           justVoted: true,

@@ -9,6 +9,7 @@ import '../theme.dart';
 import '../widgets/app_logo.dart';
 import '../widgets/civic.dart';
 import '../widgets/common.dart';
+import '../widgets/failure_view.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -61,7 +62,9 @@ class _LoginScreenState extends State<LoginScreen> {
       await auth.sendEmailOtp(_email.text);
       if (mounted) context.push('/email-otp');
     } catch (e) {
-      setState(() => _error = friendlyError(e));
+      if (!mounted) return;
+      if (await showFailure(context, e, onRetry: _submit)) return;
+      if (mounted) setState(() => _error = friendlyError(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }

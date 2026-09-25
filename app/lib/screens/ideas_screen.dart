@@ -10,6 +10,7 @@ import '../utils/errors.dart';
 import '../utils/format.dart';
 import '../widgets/brand.dart';
 import '../widgets/common.dart';
+import '../widgets/failure_view.dart';
 import 'proposal_form_screen.dart';
 
 /// Resident: my submitted ideas with their review status, plus "Suggest an idea".
@@ -96,6 +97,7 @@ class _IdeaCard extends StatelessWidget {
     try {
       await context.read<WardProvider>().withdrawIdea(idea.id);
     } catch (e) {
+      if (context.mounted && await showFailure(context, e)) return;
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
       }

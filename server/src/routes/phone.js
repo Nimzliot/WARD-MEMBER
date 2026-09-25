@@ -65,7 +65,7 @@ router.post('/send-otp', async (req, res) => {
     return res.status(400).json({ error: 'Enter a valid 10-digit Indian mobile number' });
   }
   if (!ipAllowed(req.ip)) {
-    return res.status(429).json({ error: 'Too many requests from this device. Try again later.' });
+    return res.status(429).json({ error: 'Too many requests from this device. Try again later.', code: 'RATE_LIMITED', retry_after: 3600 });
   }
 
   const userId = await findOrCreatePhoneUser(phone);
@@ -90,7 +90,7 @@ router.post('/send-otp', async (req, res) => {
     }
   }
   if (recent.length >= cfg.otp.maxPerHour) {
-    return res.status(429).json({ error: 'Too many codes requested. Try again in an hour.' });
+    return res.status(429).json({ error: 'Too many codes requested. Try again in an hour.', code: 'RATE_LIMITED', retry_after: 3600 });
   }
 
   // Store only the hash. Only the newest row per user is ever checked.
@@ -113,7 +113,7 @@ router.post('/send-otp', async (req, res) => {
   } catch (err) {
     console.error('SMS send failed:', err.response?.data || err.message);
     await supabase.from('phone_otps').delete().eq('id', row.id); // don't burn the cooldown
-    return res.status(502).json({ error: 'Could not send the SMS. Please try again.' });
+    return res.status(502).json({ error: 'Could not send the SMS. Please try again.', code: 'SMS_FAILED' });
   }
 
   res.json({

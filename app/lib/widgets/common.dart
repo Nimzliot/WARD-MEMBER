@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../theme.dart';
+import '../utils/failure.dart';
 import 'civic.dart';
+import 'failure_view.dart';
 
 /// Full-width filled button with a built-in loading spinner.
 class PrimaryButton extends StatelessWidget {
@@ -128,38 +130,19 @@ class HeroProgress extends StatelessWidget {
       );
 }
 
-/// Centered error message with a Retry button (for failed loads).
+/// A screen that failed to load: shows the matching full failure page
+/// (offline, server down, session expired, 404…). Pass the raw [error] when
+/// you have it; [message] alone is classified by its wording.
 class ErrorView extends StatelessWidget {
-  const ErrorView({super.key, required this.message, required this.onRetry});
+  const ErrorView({super.key, this.message, this.error, required this.onRetry});
 
-  final String message;
+  final String? message;
+  final Object? error;
   final VoidCallback onRetry;
 
   @override
-  Widget build(BuildContext context) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 72,
-                height: 72,
-                decoration: const BoxDecoration(color: Color(0xFFFDEEEC), shape: BoxShape.circle),
-                child: const Icon(Icons.cloud_off_rounded, size: 34, color: Color(0xFF9B1C1C)),
-              ),
-              const SizedBox(height: 12),
-              Text(message, textAlign: TextAlign.center),
-              const SizedBox(height: 16),
-              FilledButton.tonalIcon(
-                onPressed: onRetry,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Retry'),
-              ),
-            ],
-          ),
-        ),
-      );
+  Widget build(BuildContext context) =>
+      FailureView(failure: AppFailure.from(error ?? message ?? 'Unknown error'), onRetry: onRetry);
 }
 
 /// Centered icon + message for empty lists.

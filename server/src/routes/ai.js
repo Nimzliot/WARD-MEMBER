@@ -41,7 +41,7 @@ router.use((req, res, next) => {
   const since = Date.now() - 10 * 60 * 1000;
   const recent = (usage.get(req.user.id) || []).filter((t) => t > since);
   if (recent.length >= 40) {
-    return res.status(429).json({ error: 'Ward Assistant is resting. Try again in a few minutes.' });
+    return res.status(429).json({ error: 'Ward Assistant is resting. Try again in a few minutes.', code: 'RATE_LIMITED', retry_after: 300 });
   }
   recent.push(Date.now());
   usage.set(req.user.id, recent);
@@ -99,8 +99,8 @@ router.post('/explain', async (req, res) => {
   if (!UUID_RE.test(String(proposalId))) return res.status(400).json({ error: 'Invalid proposalId' });
 
   const ctx = await loadProposalContext(proposalId);
-  if (!ctx) return res.status(404).json({ error: 'Proposal not found' });
-  if (!canSeeProposal(req, ctx.proposal)) return res.status(403).json({ error: 'Not your ward' });
+  if (!ctx) return res.status(404).json({ error: 'Proposal not found', code: 'NOT_FOUND' });
+  if (!canSeeProposal(req, ctx.proposal)) return res.status(403).json({ error: 'Not your ward', code: 'NOT_YOUR_WARD' });
 
   const key = `explain:${proposalId}:${ctx.proposal.total_cost}:${lang}`;
   const result = await cached(key, 24 * 60 * 60 * 1000, () =>
@@ -170,12 +170,12 @@ router.post('/ask', async (req, res) => {
   if (proposalId) {
     if (!UUID_RE.test(String(proposalId))) return res.status(400).json({ error: 'Invalid proposalId' });
     const ctx = await loadProposalContext(proposalId);
-    if (!ctx) return res.status(404).json({ error: 'Proposal not found' });
-    if (!canSeeProposal(req, ctx.proposal)) return res.status(403).json({ error: 'Not your ward' });
+    if (!ctx) return res.status(404).json({ error: 'Proposal not found', code: 'NOT_FOUND' });
+    if (!canSeeProposal(req, ctx.proposal)) return res.status(403).json({ error: 'Not your ward', code: 'NOT_YOUR_WARD' });
     data = describeProposal(ctx);
   } else {
     const wardId = Number(req.body?.wardId) || req.profile.ward_id;
-    if (!canSeeWard(req.profile, wardId)) return res.status(403).json({ error: 'Not your ward' });
+    if (!canSeeWard(req.profile, wardId)) return res.status(403).json({ error: 'Not your ward', code: 'NOT_YOUR_WARD' });
     data = await describeWard(wardId);
     if (!data) return res.status(404).json({ error: 'Ward not found' });
   }
@@ -258,7 +258,7 @@ router.post('/draft', async (req, res) => {
 router.post('/insight', async (req, res) => {
   const wardId = Number(req.body?.wardId);
   const lang = langOf(req.body?.lang);
-  if (!canSeeWard(req.profile, wardId)) return res.status(403).json({ error: 'Not your ward' });
+  if (!canSeeWard(req.profile, wardId)) return res.status(403).json({ error: 'Not your ward', code: 'NOT_YOUR_WARD' });
 
   const [ward, proposals, votes] = await Promise.all([
     supabase.from('wards').select('name, budget_pool').eq('id', wardId).maybeSingle().then(must),

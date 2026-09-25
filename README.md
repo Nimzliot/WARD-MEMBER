@@ -21,6 +21,10 @@ Ward residents suggest projects, then back **every project they want funded** as
 
 > Rendered with sample data by `app/tool/screenshots_test.dart` (`flutter test tool/screenshots_test.dart --update-goldens`).
 
+| 404 | Offline | Voting not open | Already voted |
+|---|---|---|---|
+| <img src="docs/screenshots/20_err_404.png" width="200"> | <img src="docs/screenshots/21_err_offline.png" width="200"> | <img src="docs/screenshots/25_err_not_open.png" width="200"> | <img src="docs/screenshots/26_err_already_voted.png" width="200"> |
+
 ## Features
 | Area | What it does |
 |---|---|
@@ -32,6 +36,7 @@ Ward residents suggest projects, then back **every project they want funded** as
 | **Resident ideas** | Residents submit their own project ideas, with an AI-drafted ₹ breakdown if they want one. An admin approves the idea (it goes on the ballot), edits it, or rejects it with a note the resident can see. |
 | **Live results** | Supabase Realtime covers the votes bar chart, the fund-allocation donut and turnout. Admin changes (dates, approvals) also reach phones instantly. |
 | **Audit log** | The anonymised ballot chain. **Verify Integrity** makes the server recompute every hash. |
+| **Error pages** | Every failure has its own page: offline, server waking up, session expired, access denied, not eligible, voting not open or closed, already voted, ballot over budget, **404**, too many tries, Ward Assistant resting, server error, and app crash (instead of Flutter's red screen). Each page has an illustration, a clear next step, automatic retry where it helps, and copyable technical details. The server sends an error `code` (e.g. `VOTING_CLOSED`) so the app picks the right page. Admins can preview them all under Admin panel → ⚠ **Error pages**. |
 | **Admin** | Full control: create, edit and delete wards, budget pools and voting windows (or open and close voting now); create, edit, unlist and delete proposals; review ideas; promote admins or move residents between wards; reset a ward's ballot box. |
 
 ## Architecture

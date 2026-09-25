@@ -10,12 +10,14 @@ import '../providers/auth_provider.dart';
 import '../providers/ward_provider.dart';
 import '../theme.dart';
 import '../utils/categories.dart';
+import '../utils/failure.dart';
 import '../utils/format.dart';
 import '../widgets/ai_widgets.dart';
 import '../widgets/ballot_widgets.dart';
 import '../widgets/brand.dart';
 import '../widgets/budget_breakdown.dart';
 import '../widgets/common.dart';
+import '../widgets/failure_view.dart';
 
 class ProposalDetailScreen extends StatefulWidget {
   const ProposalDetailScreen({super.key, required this.proposalId});
@@ -36,12 +38,15 @@ class _ProposalDetailScreenState extends State<ProposalDetailScreen> {
     final scheme = theme.colorScheme;
 
     if (p == null) {
-      return Scaffold(
-        appBar: AppBar(),
-        body: wp.loading
-            ? const Center(child: CircularProgressIndicator())
-            : const EmptyView(icon: Icons.search_off, message: 'Proposal not found in your ward.'),
-      );
+      return wp.loading
+          ? const Scaffold(body: Center(child: CircularProgressIndicator()))
+          : FailureScreen(
+              failure: AppFailure.of(
+                FailureKind.notFound,
+                message: 'This proposal was removed or isn\'t on your ward\'s ballot.',
+                detail: 'Proposal ${widget.proposalId} not in ward ${wp.wardId}',
+              ),
+            );
     }
 
     final pool = wp.ward?.budgetPool ?? 0;

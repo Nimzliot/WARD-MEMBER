@@ -80,7 +80,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
           if (results.error != null && results.totalVotes == 0) {
             return Column(children: [
               header(),
-              Expanded(child: ErrorView(message: results.error!, onRetry: results.refresh)),
+              Expanded(child: ErrorView(message: results.error, error: results.failure, onRetry: results.refresh)),
             ]);
           }
           final alloc = allocate(wp.proposals, results.counts, wp.ward!.budgetPool);

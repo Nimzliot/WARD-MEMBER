@@ -5,6 +5,7 @@ import '../providers/auth_provider.dart';
 import '../utils/errors.dart';
 import '../widgets/brand.dart';
 import '../widgets/common.dart';
+import '../widgets/failure_view.dart';
 import '../widgets/otp_input.dart';
 
 class EmailOtpScreen extends StatefulWidget {
@@ -37,6 +38,8 @@ class _EmailOtpScreenState extends State<EmailOtpScreen> {
       await context.read<AuthProvider>().verifyEmailOtp(_code.text);
     } catch (e) {
       if (!mounted) return;
+      if (await showFailure(context, e)) return;
+      if (!mounted) return;
       setState(() => _error = friendlyError(e));
       _code.clear();
     } finally {
@@ -54,7 +57,7 @@ class _EmailOtpScreenState extends State<EmailOtpScreen> {
       if (mounted) setState(() => _info = 'A new code has been sent.');
       return 60;
     } catch (e) {
-      if (mounted) setState(() => _error = friendlyError(e));
+      if (mounted && !await showFailure(context, e) && mounted) setState(() => _error = friendlyError(e));
       return null;
     }
   }

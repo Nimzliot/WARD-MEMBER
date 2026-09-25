@@ -7,6 +7,7 @@ import '../utils/errors.dart';
 import '../utils/format.dart';
 import '../widgets/brand.dart';
 import '../widgets/common.dart';
+import '../widgets/failure_view.dart';
 import '../widgets/otp_input.dart';
 
 /// Login with an SMS code (the "Mobile" option on the login screen).
@@ -41,6 +42,8 @@ class _PhoneOtpScreenState extends State<PhoneOtpScreen> {
   }
 
   /// Sends the SMS. Returns seconds until the next resend is allowed, or null on failure.
+  static const _pageCodes = {'OFFLINE', 'SERVER_DOWN', 'RATE_LIMITED', 'SMS_FAILED'};
+
   Future<int?> _send() async {
     setState(() {
       _error = null;
@@ -59,6 +62,12 @@ class _PhoneOtpScreenState extends State<PhoneOtpScreen> {
       return (res['resendIn'] as num?)?.toInt() ?? 60;
     } on ApiException catch (e) {
       final retryAfter = (e.body['retryAfter'] as num?)?.toInt();
+      // Network / hourly limit / SMS gateway → full page; the 60 s resend wait stays inline.
+      if (mounted && _pageCodes.contains(e.body['code'])) {
+        setState(() => _sent = true);
+        await showFailure(context, e, onRetry: _send);
+        return null;
+      }
       if (mounted) {
         setState(() {
           _sent = true;
@@ -67,12 +76,9 @@ class _PhoneOtpScreenState extends State<PhoneOtpScreen> {
       }
       return retryAfter;
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _sent = true;
-          _error = friendlyError(e);
-        });
-      }
+      if (mounted) setState(() => _sent = true);
+      if (mounted && await showFailure(context, e, onRetry: _send)) return null;
+      if (mounted) setState(() => _error = friendlyError(e));
       return null;
     }
   }
@@ -88,12 +94,17 @@ class _PhoneOtpScreenState extends State<PhoneOtpScreen> {
       await context.read<AuthProvider>().verifyPhoneOtp(_code.text);
     } on ApiException catch (e) {
       if (!mounted) return;
+      if (_pageCodes.contains(e.body['code'])) {
+        await showFailure(context, e, onRetry: _verify);
+        return;
+      }
       setState(() {
         _error = e.message;
         if (e.body['attemptsLeft'] == 0) _info = 'Tap "Resend code" to get a new one.';
       });
       _code.clear();
     } catch (e) {
+      if (mounted && await showFailure(context, e, onRetry: _verify)) return;
       if (mounted) setState(() => _error = friendlyError(e));
     } finally {
       if (mounted) setState(() => _verifying = false);

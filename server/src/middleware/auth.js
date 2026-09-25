@@ -5,10 +5,10 @@ const { supabase } = require('../supabase');
 async function requireAuth(req, res, next) {
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7).trim() : null;
-  if (!token) return res.status(401).json({ error: 'Missing Authorization: Bearer <token>' });
+  if (!token) return res.status(401).json({ error: 'Missing Authorization: Bearer <token>', code: 'SESSION_EXPIRED' });
 
   const { data, error } = await supabase.auth.getUser(token);
-  if (error || !data?.user) return res.status(401).json({ error: 'Invalid or expired session' });
+  if (error || !data?.user) return res.status(401).json({ error: 'Invalid or expired session', code: 'SESSION_EXPIRED' });
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
@@ -16,7 +16,7 @@ async function requireAuth(req, res, next) {
     .eq('id', data.user.id)
     .maybeSingle();
   if (profileError) throw profileError;
-  if (!profile) return res.status(403).json({ error: 'Profile not found. Re-run schema.sql back-fill.' });
+  if (!profile) return res.status(403).json({ error: 'Profile not found. Re-run schema.sql back-fill.', code: 'NOT_ELIGIBLE' });
 
   req.user = data.user;
   req.profile = profile;
@@ -24,7 +24,7 @@ async function requireAuth(req, res, next) {
 }
 
 function requireAdmin(req, res, next) {
-  if (req.profile?.role !== 'admin') return res.status(403).json({ error: 'Admins only' });
+  if (req.profile?.role !== 'admin') return res.status(403).json({ error: 'Admins only', code: 'ADMIN_ONLY' });
   next();
 }
 
