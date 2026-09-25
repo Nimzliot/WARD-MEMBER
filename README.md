@@ -36,6 +36,7 @@ Ward residents suggest projects, then back **every project they want funded** as
 | **Resident ideas** | Residents submit their own project ideas, with an AI-drafted ₹ breakdown if they want one. An admin approves the idea (it goes on the ballot), edits it, or rejects it with a note the resident can see. |
 | **Live results** | Supabase Realtime covers the votes bar chart, the fund-allocation donut and turnout. Admin changes (dates, approvals) also reach phones instantly. |
 | **Audit log** | The anonymised ballot chain. **Verify Integrity** makes the server recompute every hash. |
+| **Ward map** | **Map** tab (OpenStreetMap, no API key): every project on the ballot and every idea as a pin. Green means on the ballot, amber means an idea in review, grey means not approved, and a tick means it is on your ballot. Tap a pin to add it to your ballot or open it. Admins can switch to **all wards** to review ideas by place. Proposal pages show a mini-map, and the idea and proposal forms have a **Pick on map** location picker. |
 | **Error pages** | Every failure has its own page: offline, server waking up, session expired, access denied, not eligible, voting not open or closed, already voted, ballot over budget, **404**, too many tries, Ward Assistant resting, server error, and app crash (instead of Flutter's red screen). Each page has an illustration, a clear next step, automatic retry where it helps, and copyable technical details. The server sends an error `code` (e.g. `VOTING_CLOSED`) so the app picks the right page. Admins can preview them all under Admin panel → ⚠ **Error pages**. |
 | **Admin** | Full control: create, edit and delete wards, budget pools and voting windows (or open and close voting now); create, edit, unlist and delete proposals; review ideas; promote admins or move residents between wards; reset a ward's ballot box. |
 
@@ -80,7 +81,7 @@ The database enforces `UNIQUE(user_id, ward_id)` (one ballot per resident) and `
 ### 1. Supabase
 1. Create a project (region: Mumbai).
 2. **SQL Editor**: run `database/schema.sql`. The last result should show 3 wards with 4, 4 and 3 proposals.
-   - Upgrading an existing database instead? Run `database/migrations/001_single_verification.sql`, then `002_phases_ideas_ballots.sql`.
+   - Upgrading an existing database instead? Run `database/migrations/001_single_verification.sql`, `002_phases_ideas_ballots.sql`, then `003_locations.sql` (map pins; sample wards are placed in Chennai).
 3. Switch email login to a 6-digit code instead of a magic link. Either:
    - **Manually:** Authentication → Emails → Templates. In **Magic Link** *and* **Confirm signup**, put `{{ .Token }}` in the body, and set Email OTP Length = 6. Details are in [docs/SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md).
    - **Or by script:** `SUPABASE_ACCESS_TOKEN=sbp_... node server/scripts/setup-email-otp.js`

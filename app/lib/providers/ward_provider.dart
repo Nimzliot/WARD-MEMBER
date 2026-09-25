@@ -202,6 +202,12 @@ class WardProvider extends ChangeNotifier {
     await load();
   }
 
+  /// Same as [submitIdea] with the full API body (title, category, items, lat/lng…).
+  Future<void> submitIdeaBody(Map<String, dynamic> body) async {
+    await ApiService.post('/api/ideas', body);
+    await load();
+  }
+
   Future<void> withdrawIdea(String id) async {
     await ApiService.delete('/api/ideas/$id');
     await load();

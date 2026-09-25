@@ -18,6 +18,7 @@ import '../widgets/brand.dart';
 import '../widgets/budget_breakdown.dart';
 import '../widgets/common.dart';
 import '../widgets/failure_view.dart';
+import '../widgets/map_widgets.dart';
 
 class ProposalDetailScreen extends StatefulWidget {
   const ProposalDetailScreen({super.key, required this.proposalId});
@@ -150,6 +151,19 @@ class _ProposalDetailScreenState extends State<ProposalDetailScreen> {
                     p.description,
                     style: theme.textTheme.bodyLarge?.copyWith(color: scheme.onSurfaceVariant, height: 1.5),
                   ),
+                  if (p.hasLocation) ...[
+                    const SizedBox(height: 22),
+                    Row(children: [
+                      const Icon(Icons.place_rounded, size: 18, color: AppColors.forest),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(p.locationName ?? 'Project location',
+                            style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.forestDark)),
+                      ),
+                    ]),
+                    const SizedBox(height: 10),
+                    MiniMap(proposal: p, onOpen: () => context.go('/map?focus=${p.id}')),
+                  ],
                   const SizedBox(height: 20),
                   // Ward Assistant — plain-language explanation in EN / Tamil / Hindi
                   ExplainCard(key: ValueKey(p.id), proposal: p),

@@ -11,6 +11,7 @@ import 'screens/error_gallery_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/ideas_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/map_screen.dart';
 import 'screens/phone_otp_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/profile_setup_screen.dart';
@@ -62,6 +63,12 @@ GoRouter buildRouter(AuthProvider auth) => GoRouter(
           branches: [
             StatefulShellBranch(routes: [
               GoRoute(path: '/home', builder: (_, _) => const HomeScreen()),
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(
+                path: '/map',
+                builder: (_, state) => MapScreen(focusId: state.uri.queryParameters['focus']),
+              ),
             ]),
             StatefulShellBranch(routes: [
               GoRoute(path: '/results', builder: (_, _) => const ResultsScreen()),

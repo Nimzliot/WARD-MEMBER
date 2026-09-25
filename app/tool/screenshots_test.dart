@@ -32,6 +32,8 @@ import 'package:ward_budget/screens/email_otp_screen.dart';
 import 'package:ward_budget/screens/home_screen.dart';
 import 'package:ward_budget/screens/ideas_screen.dart';
 import 'package:ward_budget/screens/login_screen.dart';
+import 'package:ward_budget/screens/map_screen.dart';
+import 'package:ward_budget/widgets/map_widgets.dart';
 import 'package:ward_budget/screens/phone_otp_screen.dart';
 import 'package:ward_budget/screens/profile_screen.dart';
 import 'package:ward_budget/screens/profile_setup_screen.dart';
@@ -58,28 +60,28 @@ BudgetItem _i(String l, int a) => BudgetItem(id: l, label: l, amount: a);
 
 final proposals = [
   Proposal(
-    id: 'p1', wardId: 1, title: 'Resurface MG Road & Lanes 4–7', category: 'Roads & Transport',
+    id: 'p1', wardId: 1, lat: 13.0089, lng: 80.2552, locationName: 'MG Road, Gandhi Nagar', title: 'Resurface MG Road & Lanes 4–7', category: 'Roads & Transport',
     description: 'Potholed 1.4 km stretch used by 3 schools and the weekly market. Includes side drains to stop monsoon waterlogging.',
     totalCost: 3255000, createdAt: DateTime(2026, 9, 1),
     items: [_i('Bituminous resurfacing (1.4 km)', 1960000), _i('Storm-water side drains', 840000),
       _i('Road markings & signage', 180000), _i('Contingency (5%)', 155000), _i('Speed tables near school zones', 120000)],
   ),
   Proposal(
-    id: 'p2', wardId: 1, title: 'Solar LED Street Lights', category: 'Street Lighting',
+    id: 'p2', wardId: 1, lat: 13.0041, lng: 80.2601, locationName: 'Lanes 9–14', title: 'Solar LED Street Lights', category: 'Street Lighting',
     description: '120 solar LED lights on dark lanes flagged by residents as unsafe after 8 pm. Zero electricity bill.',
     totalCost: 2850000, createdAt: DateTime(2026, 9, 1),
     items: [_i('120 × 40W solar LED fixtures', 1740000), _i('Poles & foundations', 600000),
       _i('3-year maintenance contract', 270000), _i('Installation & wiring', 240000)],
   ),
   Proposal(
-    id: 'p3', wardId: 1, title: 'Gandhi Maidan Park Revamp', category: 'Parks & Environment',
+    id: 'p3', wardId: 1, lat: 13.0072, lng: 80.2598, locationName: 'Gandhi Maidan', title: 'Gandhi Maidan Park Revamp', category: 'Parks & Environment',
     description: 'Walking track, open-air gym and a safe play area for children, plus 300 native trees.',
     totalCost: 2500000, createdAt: DateTime(2026, 9, 1),
     items: [_i('Walking track (600 m)', 900000), _i("Children's play equipment", 650000),
       _i('Open-air gym', 450000), _i('Benches & lighting', 350000), _i('Native trees', 150000)],
   ),
   Proposal(
-    id: 'p4', wardId: 1, title: 'Ward Health Sub-centre Upgrade', category: 'Health',
+    id: 'p4', wardId: 1, lat: 13.0053, lng: 80.2533, locationName: 'Ward health sub-centre', title: 'Ward Health Sub-centre Upgrade', category: 'Health',
     description: 'Renovate the sub-centre and add basic diagnostics so residents avoid the 6 km trip to the district hospital.',
     totalCost: 2200000, createdAt: DateTime(2026, 9, 1),
     items: [_i('Building renovation', 800000), _i('Diagnostic equipment', 700000),
@@ -89,7 +91,7 @@ final proposals = [
 
 final myIdeas = [
   Proposal(
-    id: 'i1', wardId: 1, title: 'Bus shelters on Station Road', category: 'Roads & Transport',
+    id: 'i1', wardId: 1, lat: 13.0101, lng: 80.2585, locationName: 'Station Road', title: 'Bus shelters on Station Road', category: 'Roads & Transport',
     description: 'Four shelters with benches for the morning school rush.', totalCost: 540000,
     createdAt: DateTime.now().subtract(const Duration(hours: 5)), status: ProposalStatus.pending, fromResident: true,
     items: [_i('4 steel shelters with benches', 480000), _i('Installation', 60000)],
@@ -114,6 +116,7 @@ Map<String, dynamic> proposalJson(Proposal p) => {
   'id': p.id, 'ward_id': p.wardId, 'title': p.title, 'description': p.description, 'category': p.category,
   'total_cost': p.totalCost, 'created_at': p.createdAt.toUtc().toIso8601String(), 'status': p.status.name,
   'origin': p.fromResident ? 'resident' : 'official', 'review_note': p.reviewNote,
+  'lat': p.lat, 'lng': p.lng, 'location_name': p.locationName,
   'budget_items': [for (final i in p.items) {'id': i.id, 'label': i.label, 'amount': i.amount}],
 };
 
@@ -313,6 +316,7 @@ void main() {
     );
     ApiService.client = apiMock;
     ResultsScreen.createResults = (_) => FakeResults();
+    mapTilesEnabled = false;
   });
 
   setUp(() {
@@ -356,14 +360,16 @@ void main() {
         await t.drag(find.byType(Scrollable).first, const Offset(0, -380));
         await settle(t);
       }));
-  testWidgets('09 results', (t) => shot(t, '09_results', app(const ResultsScreen(), tab: 1)));
-  testWidgets('10 results scrolled', (t) => shot(t, '10_results_scrolled', app(const ResultsScreen(), tab: 1),
+  testWidgets('18 map', (t) => shot(t, '18_map', app(const MapScreen(), tab: 1)));
+  testWidgets('18b map selected', (t) => shot(t, '18b_map_selected', app(const MapScreen(focusId: 'p1'), tab: 1)));
+  testWidgets('09 results', (t) => shot(t, '09_results', app(const ResultsScreen(), tab: 2)));
+  testWidgets('10 results scrolled', (t) => shot(t, '10_results_scrolled', app(const ResultsScreen(), tab: 2),
       before: (t) async {
         await t.drag(find.byType(Scrollable).first, const Offset(0, -700));
         await settle(t);
       }));
-  testWidgets('11 assistant', (t) => shot(t, '11_assistant', app(const AssistantScreen(), tab: 2)));
-  testWidgets('12 audit', (t) => shot(t, '12_audit', app(const AuditScreen(), tab: 3)));
+  testWidgets('11 assistant', (t) => shot(t, '11_assistant', app(const AssistantScreen(), tab: 3)));
+  testWidgets('12 audit', (t) => shot(t, '12_audit', app(const AuditScreen(), tab: 4)));
   testWidgets('13 profile', (t) => shot(t, '13_profile', app(const ProfileScreen())));
   testWidgets('14 admin', (t) => shot(t, '14_admin', app(const AdminScreen())));
   testWidgets('14b admin ideas', (t) => shot(t, '14b_admin_ideas', app(const AdminScreen()), before: (t) async {

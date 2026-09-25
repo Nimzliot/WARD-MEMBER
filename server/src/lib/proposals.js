@@ -22,6 +22,21 @@ function validateProposal(body, { partial = false } = {}) {
     if (typeof category !== 'string' || !category.trim()) errors.push('category is required');
     else value.category = category.trim().slice(0, 60);
   }
+  // Optional map pin: { lat, lng } together, plus a short place name
+  const { lat, lng, locationName } = body || {};
+  if (lat !== undefined || lng !== undefined) {
+    if (lat === null && lng === null) {
+      value.lat = null;
+      value.lng = null;
+    } else if (typeof lat !== 'number' || typeof lng !== 'number' || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+      errors.push('lat/lng must be valid coordinates');
+    } else {
+      value.lat = lat;
+      value.lng = lng;
+    }
+  }
+  if (locationName !== undefined) value.location_name = locationName ? String(locationName).trim().slice(0, 120) : null;
+
   if (items !== undefined || !partial) {
     if (!Array.isArray(items) || items.length < 1 || items.length > 20) {
       errors.push('items must contain 1–20 budget lines');
@@ -43,8 +58,20 @@ async function loadProposal(id) {
 }
 
 // Inserts a proposal with its budget lines (all-or-nothing) and returns it in full.
+// Before migration 003 the location columns don't exist yet: retry without them.
+const LOCATION_KEYS = ['lat', 'lng', 'location_name'];
+const missingColumn = (error) => error && (error.code === 'PGRST204' || /lat|lng|location_name/.test(error.message || ''));
+const withoutLocation = (fields) => Object.fromEntries(Object.entries(fields).filter(([k]) => !LOCATION_KEYS.includes(k)));
+
+// Insert or update that tolerates a database without the location columns.
+async function writeProposal(query, fields) {
+  let res = await query(fields);
+  if (missingColumn(res.error)) res = await query(withoutLocation(fields));
+  return must(res);
+}
+
 async function createProposal({ items, ...fields }) {
-  const proposal = must(await supabase.from('proposals').insert(fields).select('id').single());
+  const proposal = await writeProposal((f) => supabase.from('proposals').insert(f).select('id').single(), fields);
   const { error } = await supabase
     .from('budget_items')
     .insert(items.map((it) => ({ proposal_id: proposal.id, ...it })));
@@ -62,4 +89,4 @@ async function replaceItems(proposalId, items) {
   if (old.length) must(await supabase.from('budget_items').delete().in('id', old.map((o) => o.id)).select('id'));
 }
 
-module.exports = { UUID_RE, validateProposal, loadProposal, createProposal, replaceItems };
+module.exports = { UUID_RE, validateProposal, loadProposal, createProposal, replaceItems, writeProposal };

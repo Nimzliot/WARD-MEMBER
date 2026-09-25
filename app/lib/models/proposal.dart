@@ -28,6 +28,9 @@ class Proposal {
   final bool fromResident; // submitted as a resident idea
   final String? submittedBy;
   final String? reviewNote; // admin's note to the resident
+  final double? lat; // map pin (optional)
+  final double? lng;
+  final String? locationName;
 
   const Proposal({
     required this.id,
@@ -42,7 +45,12 @@ class Proposal {
     this.fromResident = false,
     this.submittedBy,
     this.reviewNote,
+    this.lat,
+    this.lng,
+    this.locationName,
   });
+
+  bool get hasLocation => lat != null && lng != null;
 
   bool get isApproved => status == ProposalStatus.approved;
 
@@ -62,5 +70,8 @@ class Proposal {
         fromResident: m['origin'] == 'resident',
         submittedBy: m['submitted_by'] as String?,
         reviewNote: m['review_note'] as String?,
+        lat: (m['lat'] as num?)?.toDouble(),
+        lng: (m['lng'] as num?)?.toDouble(),
+        locationName: m['location_name'] as String?,
       );
 }

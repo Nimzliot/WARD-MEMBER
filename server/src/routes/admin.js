@@ -3,7 +3,7 @@ const express = require('express');
 const { supabase, must } = require('../supabase');
 const { requireAdmin } = require('../middleware/auth');
 const { wardPhase } = require('../lib/phase');
-const { UUID_RE, validateProposal, loadProposal, createProposal, replaceItems } = require('../lib/proposals');
+const { UUID_RE, validateProposal, loadProposal, createProposal, replaceItems, writeProposal } = require('../lib/proposals');
 
 const router = express.Router();
 router.use(requireAdmin);
@@ -32,6 +32,12 @@ function wardFields(body, { partial }) {
   if (budgetPool !== undefined || !partial) {
     if (!Number.isInteger(budgetPool) || budgetPool <= 0) return { error: 'budgetPool must be a positive whole number of rupees' };
     fields.budget_pool = budgetPool;
+  }
+  const { centerLat, centerLng } = body || {};
+  if (centerLat !== undefined || centerLng !== undefined) {
+    if (typeof centerLat !== 'number' || typeof centerLng !== 'number') return { error: 'centerLat/centerLng must be numbers' };
+    fields.center_lat = centerLat;
+    fields.center_lng = centerLng;
   }
   const opens = parseWhen(votingOpensAt);
   const closes = parseWhen(votingClosesAt);
@@ -169,7 +175,9 @@ router.patch('/proposals/:id', async (req, res) => {
   }
   if (reviewNote !== undefined) fields.review_note = reviewNote ? String(reviewNote).trim().slice(0, 500) : null;
 
-  if (Object.keys(fields).length) must(await supabase.from('proposals').update(fields).eq('id', id).select('id'));
+  if (Object.keys(fields).length) {
+    await writeProposal((f) => supabase.from('proposals').update(f).eq('id', id).select('id'), fields);
+  }
   if (items) await replaceItems(id, items);
 
   res.json({ message: 'Proposal updated', proposal: await loadProposal(id) });

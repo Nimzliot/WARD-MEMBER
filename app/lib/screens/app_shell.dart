@@ -43,6 +43,11 @@ class AppNavBar extends StatelessWidget {
             label: 'Proposals',
           ),
           NavigationDestination(
+            icon: Icon(Icons.map_outlined),
+            selectedIcon: Icon(Icons.map_rounded),
+            label: 'Map',
+          ),
+          NavigationDestination(
             icon: Icon(Icons.insights_outlined),
             selectedIcon: Icon(Icons.insights_rounded),
             label: 'Results',

@@ -28,6 +28,8 @@ create table public.wards (
   budget_pool bigint not null check (budget_pool > 0),         -- INR (whole rupees)
   voting_opens_at  timestamptz,                               -- null = already open
   voting_closes_at timestamptz,                               -- null = no deadline
+  center_lat  double precision,                               -- map centre of the ward
+  center_lng  double precision,
   constraint wards_window_check
     check (voting_opens_at is null or voting_closes_at is null or voting_closes_at > voting_opens_at)
 );
@@ -70,7 +72,12 @@ create table public.proposals (
   submitted_by uuid references auth.users(id) on delete set null,
   review_note  text,                                          -- admin's reason (shown to the resident)
   reviewed_at  timestamptz,
-  created_at  timestamptz not null default now()
+  lat           double precision,                             -- map pin (optional)
+  lng           double precision,
+  location_name text,                                         -- e.g. "MG Road, Gandhi Nagar"
+  created_at  timestamptz not null default now(),
+  constraint proposals_location_check
+    check ((lat is null and lng is null) or (lat between -90 and 90 and lng between -180 and 180))
 );
 create index proposals_ward_idx on public.proposals (ward_id, status);
 create index proposals_submitted_by_idx on public.proposals (submitted_by);
@@ -258,10 +265,11 @@ end $;
 -- 5. Seed data (amounts in INR)
 -- ---------------------------------------------------------------------
 -- Voting opened yesterday and closes in 14 days (admins can change this in the app).
-insert into public.wards (id, name, budget_pool, voting_opens_at, voting_closes_at) values
-  (1, 'Ward 1 – Gandhi Nagar', 7500000, now() - interval '1 day', now() + interval '14 days'),  -- ₹75,00,000
-  (2, 'Ward 2 – Lake View',    6000000, now() - interval '1 day', now() + interval '14 days'),  -- ₹60,00,000
-  (3, 'Ward 3 – Old Market',   5000000, now() - interval '1 day', now() + interval '14 days');  -- ₹50,00,000
+-- Sample wards are placed in Chennai (map centres).
+insert into public.wards (id, name, budget_pool, voting_opens_at, voting_closes_at, center_lat, center_lng) values
+  (1, 'Ward 1 – Gandhi Nagar', 7500000, now() - interval '1 day', now() + interval '14 days', 13.0067, 80.2570),  -- ₹75,00,000
+  (2, 'Ward 2 – Lake View',    6000000, now() - interval '1 day', now() + interval '14 days', 12.9791, 80.2185),  -- ₹60,00,000
+  (3, 'Ward 3 – Old Market',   5000000, now() - interval '1 day', now() + interval '14 days', 13.0905, 80.2870);  -- ₹50,00,000
 
 -- helper: items are [["label", amount], ...]; total_cost is filled by the trigger
 create or replace function pg_temp.add_proposal(p_ward int, p_title text, p_category text,
@@ -335,6 +343,23 @@ select pg_temp.add_proposal(3, 'CCTV & Women Safety Points', 'Public Safety',
   'Cameras at 20 junctions, SOS call poles and a small monitoring room at the ward office.',
   '[["40 HD CCTV cameras", 800000], ["Monitoring room setup", 450000],
     ["SOS call poles", 300000], ["Networking & storage", 250000]]');
+
+-- Sample proposal pins (only where no location has been set yet)
+update public.proposals p set lat = v.lat, lng = v.lng, location_name = v.place
+from (values
+  ('Resurface MG Road & Lanes 4–7',           13.0089, 80.2552, 'MG Road, Gandhi Nagar'),
+  ('Solar LED Street Lights',                 13.0041, 80.2601, 'Lanes 9–14, Gandhi Nagar'),
+  ('Gandhi Maidan Park Revamp',               13.0072, 80.2598, 'Gandhi Maidan'),
+  ('Ward Health Sub-centre Upgrade',          13.0053, 80.2533, 'Ward health sub-centre'),
+  ('Lake Desilting & Fencing',                12.9812, 80.2176, 'Velachery lake'),
+  ('Door-to-Door Segregated Waste Collection', 12.9776, 80.2205, 'Ward 2 office, Lake View'),
+  ('Smart Classrooms – Govt. Primary School', 12.9765, 80.2161, 'Govt. Primary School, Lake View'),
+  ('Rainwater Harvesting Network',            12.9803, 80.2221, 'Main road, Lake View'),
+  ('Market Drainage & Pavement',              13.0912, 80.2878, 'Vegetable market, Old Market'),
+  ('Two Public Toilet Blocks',                 13.0896, 80.2859, 'Bus stand & market'),
+  ('CCTV & Women Safety Points',              13.0921, 80.2851, '20 junctions, Old Market')
+) as v(title, lat, lng, place)
+where p.title = v.title and p.lat is null;
 
 -- ---------------------------------------------------------------------
 -- 6. Back-fill profiles for users that existed before this script ran

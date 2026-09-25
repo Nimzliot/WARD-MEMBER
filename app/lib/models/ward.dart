@@ -7,6 +7,8 @@ class Ward {
   final int budgetPool; // INR
   final DateTime? votingOpensAt; // null = already open
   final DateTime? votingClosesAt; // null = no deadline
+  final double? centerLat; // map centre
+  final double? centerLng;
 
   const Ward({
     required this.id,
@@ -14,6 +16,8 @@ class Ward {
     required this.budgetPool,
     this.votingOpensAt,
     this.votingClosesAt,
+    this.centerLat,
+    this.centerLng,
   });
 
   factory Ward.fromMap(Map<String, dynamic> m) => Ward(
@@ -22,6 +26,8 @@ class Ward {
         budgetPool: (m['budget_pool'] as num).toInt(),
         votingOpensAt: _date(m['voting_opens_at']),
         votingClosesAt: _date(m['voting_closes_at']),
+        centerLat: (m['center_lat'] as num?)?.toDouble(),
+        centerLng: (m['center_lng'] as num?)?.toDouble(),
       );
 
   static DateTime? _date(Object? v) => v == null ? null : DateTime.parse(v as String).toLocal();

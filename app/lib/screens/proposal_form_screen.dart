@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:latlong2/latlong.dart' show LatLng;
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -18,6 +19,7 @@ import '../theme.dart';
 import '../widgets/ai_widgets.dart';
 import '../widgets/brand.dart';
 import '../widgets/common.dart';
+import '../widgets/map_widgets.dart';
 import '../widgets/failure_view.dart';
 
 enum ProposalFormMode {
@@ -58,6 +60,8 @@ class _ProposalFormScreenState extends State<ProposalFormScreen> {
   final _description = TextEditingController();
   final List<_BudgetLine> _lines = [_BudgetLine()];
   final _idea = TextEditingController();
+  final _place = TextEditingController(); // location name, e.g. "Station Road"
+  LatLng? _point; // map pin (optional)
   late Future<List<Ward>> _wards;
   int? _wardId;
   String? _category;
@@ -79,6 +83,8 @@ class _ProposalFormScreenState extends State<ProposalFormScreen> {
       _wardId = p.wardId;
       _title.text = p.title;
       _description.text = p.description;
+      _place.text = p.locationName ?? '';
+      if (p.hasLocation) _point = LatLng(p.lat!, p.lng!);
       _category = p.category;
       _lines
         ..clear()
@@ -105,6 +111,7 @@ class _ProposalFormScreenState extends State<ProposalFormScreen> {
     _title.dispose();
     _description.dispose();
     _idea.dispose();
+    _place.dispose();
     for (final l in _lines) {
       l.dispose();
     }
@@ -164,6 +171,9 @@ class _ProposalFormScreenState extends State<ProposalFormScreen> {
         'title': _title.text.trim(),
         'description': _description.text.trim(),
         'category': _category,
+        'lat': _point?.latitude,
+        'lng': _point?.longitude,
+        'locationName': _place.text.trim().isEmpty ? null : _place.text.trim(),
         'items': [
           for (final l in _lines) {'label': l.label.text.trim(), 'amount': l.value},
         ],
@@ -183,12 +193,7 @@ class _ProposalFormScreenState extends State<ProposalFormScreen> {
       String message;
       switch (widget.mode) {
         case ProposalFormMode.idea:
-          await wp.submitIdea(
-            title: _title.text.trim(),
-            category: _category!,
-            description: _description.text.trim(),
-            items: [for (final l in _lines) (label: l.label.text.trim(), amount: l.value)],
-          );
+          await wp.submitIdeaBody(_body);
           message = 'Idea sent to the ward office for review';
         case ProposalFormMode.create:
           final res = await ApiService.post('/api/admin/proposals', {'wardId': _wardId, ..._body});
@@ -337,6 +342,8 @@ class _ProposalFormScreenState extends State<ProposalFormScreen> {
                           alignLabelWithHint: true,
                         ),
                       ),
+                      const SizedBox(height: 20),
+                      _locationSection(ward),
                       const SizedBox(height: 24),
                       Text(
                         'Budget lines',
@@ -393,6 +400,60 @@ class _ProposalFormScreenState extends State<ProposalFormScreen> {
       ),
     );
   }
+
+  /// Optional map pin + place name.
+  Widget _locationSection(Ward? ward) => Container(
+        padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.mintLine),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(_point == null ? Icons.add_location_alt_outlined : Icons.place_rounded, color: AppColors.forest),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('Location on the map', style: TextStyle(fontWeight: FontWeight.w700)),
+                Text(
+                  _point == null
+                      ? 'Optional. Helps residents see where the work happens.'
+                      : 'Pinned at ${_point!.latitude.toStringAsFixed(5)}, ${_point!.longitude.toStringAsFixed(5)}',
+                  style: const TextStyle(color: AppColors.inkMuted, fontSize: 12.5),
+                ),
+              ]),
+            ),
+            if (_point != null)
+              IconButton(
+                tooltip: 'Remove pin',
+                onPressed: () => setState(() => _point = null),
+                icon: const Icon(Icons.close_rounded, color: AppColors.inkMuted),
+              ),
+          ]),
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(
+              child: TextField(
+                controller: _place,
+                textCapitalization: TextCapitalization.words,
+                decoration: const InputDecoration(labelText: 'Place name', hintText: 'e.g. Station Road', isDense: true),
+              ),
+            ),
+            const SizedBox(width: 8),
+            FilledButton.tonalIcon(
+              onPressed: () async {
+                final picked = await Navigator.of(context).push<LatLng>(MaterialPageRoute(
+                  builder: (_) => LocationPickerScreen(initial: _point ?? wardCenter(ward)),
+                ));
+                if (picked != null) setState(() => _point = picked);
+              },
+              icon: const Icon(Icons.map_outlined, size: 18),
+              label: Text(_point == null ? 'Pick on map' : 'Move pin'),
+            ),
+          ]),
+        ]),
+      );
 
   Widget _buildLine(int i) {
     final line = _lines[i];
