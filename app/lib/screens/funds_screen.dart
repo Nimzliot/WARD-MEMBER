@@ -15,6 +15,7 @@ import '../utils/format.dart';
 import '../widgets/brand.dart';
 import '../widgets/common.dart';
 import '../widgets/failure_view.dart';
+import '../widgets/fund_widgets.dart';
 
 /// Ward Fund: fundraisers run by the Ward Admin; residents contribute through
 /// Razorpay (test mode). Totals only count payments Razorpay has confirmed.
@@ -105,7 +106,10 @@ class _FundsScreenState extends State<FundsScreen> {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const HeaderLabel('Raised so far'),
                 const SizedBox(height: 2),
-                HeaderNumber(inr(total)),
+                CountUpInr(
+                  value: total,
+                  style: const TextStyle(color: Colors.white, fontSize: 34, fontWeight: FontWeight.w800, letterSpacing: -0.5),
+                ),
                 const SizedBox(height: 10),
                 if (s?.testMode ?? true)
                   Container(
@@ -184,96 +188,108 @@ class _CampaignCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = campaign;
+    final remaining = (c.goal - c.raised).clamp(0, c.goal);
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(color: AppColors.mint, borderRadius: BorderRadius.circular(13)),
-              child: const Icon(Icons.volunteer_activism_rounded, color: AppColors.forest, size: 22),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(c.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, height: 1.25)),
-                const SizedBox(height: 2),
-                Text(
-                  c.isOpen
-                      ? (c.closesAt == null ? 'Open' : 'Open until ${formatDateTime(c.closesAt!)}')
-                      : 'Closed',
-                  style: TextStyle(
-                      fontSize: 12.5, color: c.isOpen ? AppTheme.success : AppColors.inkMuted, fontWeight: FontWeight.w700),
-                ),
-              ]),
-            ),
-            if (canManage)
-              PopupMenuButton<String>(
-                onSelected: onStatus,
-                itemBuilder: (_) => [
-                  if (c.status == 'active') const PopupMenuItem(value: 'closed', child: Text('Close fundraiser')),
-                  if (c.status != 'active') const PopupMenuItem(value: 'active', child: Text('Reopen fundraiser')),
-                ],
+      clipBehavior: Clip.antiAlias,
+      child: Stack(children: [
+        Padding(
+          // extra top room when the "you helped" ribbon is shown
+          padding: EdgeInsets.fromLTRB(16, c.myTotal > 0 ? 34 : 16, 16, 16),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            // Title row
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(
+                child: Text(c.title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, height: 1.25)),
               ),
-          ]),
-          if (c.description.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Text(c.description, style: const TextStyle(color: AppColors.inkMuted, height: 1.45)),
-          ],
-          const SizedBox(height: 14),
-          Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text(inr(c.raised), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.forestDark)),
-            const SizedBox(width: 6),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 3),
-              child: Text('of ${inr(c.goal)}', style: const TextStyle(color: AppColors.inkMuted)),
-            ),
-            const Spacer(),
-            Text('${(c.progress * 100).round()}%', style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.forest)),
-          ]),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: LinearProgressIndicator(value: c.progress, minHeight: 10, backgroundColor: AppColors.mint),
-          ),
-          const SizedBox(height: 8),
-          Row(children: [
-            const Icon(Icons.people_alt_outlined, size: 16, color: AppColors.inkMuted),
-            const SizedBox(width: 5),
-            Text('${c.backers} supporter${c.backers == 1 ? '' : 's'}',
-                style: const TextStyle(color: AppColors.inkMuted, fontSize: 12.5)),
-            if (c.myTotal > 0) ...[
-              const Spacer(),
-              const Icon(Icons.favorite_rounded, size: 15, color: AppColors.emerald),
-              const SizedBox(width: 4),
-              Text('You gave ${inr(c.myTotal)}',
-                  style: const TextStyle(color: AppColors.forest, fontWeight: FontWeight.w700, fontSize: 12.5)),
-            ],
-          ]),
-          if (c.recent.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Wrap(spacing: 6, runSpacing: 6, children: [
-              for (final r in c.recent.take(5))
+              if (c.isOpen && c.closesAt != null) ...[const SizedBox(width: 8), DaysLeftRing(closesAt: c.closesAt!)],
+              if (!c.isOpen)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(color: AppColors.canvas, borderRadius: BorderRadius.circular(20)),
-                  child: Text('${r.name} · ${inrCompact(r.amount)}',
-                      style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
+                  child: const Icon(Icons.lock_rounded, size: 16, color: AppColors.inkMuted),
+                ),
+              if (canManage)
+                PopupMenuButton<String>(
+                  onSelected: onStatus,
+                  itemBuilder: (_) => [
+                    if (c.status == 'active') const PopupMenuItem(value: 'closed', child: Text('Close fundraiser')),
+                    if (c.status != 'active') const PopupMenuItem(value: 'active', child: Text('Reopen fundraiser')),
+                  ],
                 ),
             ]),
-          ],
-          if (c.isOpen) ...[
             const SizedBox(height: 14),
-            PrimaryButton(
-              label: 'Contribute',
-              icon: Icons.favorite_rounded,
-              onPressed: canPay ? onContribute : null,
+            // Ring + numbers
+            Row(children: [
+              ProgressRing(value: c.progress),
+              const SizedBox(width: 18),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  CountUpInr(
+                    value: c.raised,
+                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: AppColors.forestDark),
+                  ),
+                  Row(children: [
+                    const Icon(Icons.flag_rounded, size: 15, color: AppColors.inkMuted),
+                    const SizedBox(width: 4),
+                    Text(inr(c.goal), style: const TextStyle(color: AppColors.inkMuted, fontWeight: FontWeight.w600)),
+                  ]),
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    SupporterStack(names: [for (final r in c.recent) r.name], total: c.backers),
+                    const SizedBox(width: 8),
+                    Text('${c.backers}',
+                        style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.forest, fontSize: 16)),
+                    const SizedBox(width: 2),
+                    const Icon(Icons.favorite_rounded, size: 15, color: AppColors.emerald),
+                  ]),
+                ]),
+              ),
+            ]),
+            const SizedBox(height: 16),
+            MilestoneTrack(value: c.progress),
+            if (remaining > 0 && c.isOpen) ...[
+              const SizedBox(height: 10),
+              Row(children: [
+                const Icon(Icons.trending_up_rounded, size: 18, color: AppColors.emerald),
+                const SizedBox(width: 6),
+                Text(inrCompact(remaining),
+                    style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.forest)),
+                const SizedBox(width: 4),
+                const Icon(Icons.arrow_forward_rounded, size: 16, color: AppColors.inkMuted),
+                const SizedBox(width: 4),
+                const Icon(Icons.forest_rounded, size: 18, color: AppColors.emerald),
+              ]),
+            ],
+            if (c.isOpen) ...[
+              const SizedBox(height: 14),
+              PulseButton(
+                label: c.myTotal > 0 ? 'Give again' : 'Contribute',
+                icon: Icons.volunteer_activism_rounded,
+                onPressed: canPay ? onContribute : null,
+              ),
+            ],
+          ]),
+        ),
+        // "You helped" ribbon
+        if (c.myTotal > 0)
+          Positioned(
+            left: 0,
+            top: 0,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(10, 4, 12, 4),
+              decoration: const BoxDecoration(
+                gradient: AppTheme.aiGradient,
+                borderRadius: BorderRadius.only(bottomRight: Radius.circular(14)),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.favorite_rounded, size: 13, color: Colors.white),
+                const SizedBox(width: 4),
+                Text(inrCompact(c.myTotal),
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 11.5)),
+              ]),
             ),
-          ],
-        ]),
-      ),
+          ),
+      ]),
     );
   }
 }
@@ -471,17 +487,24 @@ class _ContributeSheetState extends State<ContributeSheet> with WidgetsBindingOb
         const SizedBox(height: 2),
         Text(widget.campaign.title, style: const TextStyle(color: AppColors.inkMuted)),
         const SizedBox(height: 18),
-        Wrap(spacing: 8, runSpacing: 8, children: [
-          for (final a in _presets)
-            ChoiceChip(
-              label: Text(inr(a), style: const TextStyle(fontWeight: FontWeight.w700)),
-              selected: _custom.text.isEmpty && _amount == a,
-              onSelected: (_) => setState(() {
-                _amount = a;
-                _custom.clear();
-              }),
+        Row(children: [
+          for (final (i, a) in _presets.indexed) ...[
+            if (i > 0) const SizedBox(width: 8),
+            Expanded(
+              child: _AmountCard(
+                amount: a,
+                icon: const [Icons.grass_rounded, Icons.spa_rounded, Icons.park_rounded, Icons.forest_rounded][i],
+                selected: _custom.text.isEmpty && _amount == a,
+                onTap: () => setState(() {
+                  _amount = a;
+                  _custom.clear();
+                }),
+              ),
             ),
+          ],
         ]),
+        const SizedBox(height: 14),
+        _ImpactBar(campaign: widget.campaign, gift: int.tryParse(_custom.text) ?? _amount),
         const SizedBox(height: 12),
         TextField(
           controller: _custom,
@@ -495,8 +518,8 @@ class _ContributeSheetState extends State<ContributeSheet> with WidgetsBindingOb
           contentPadding: EdgeInsets.zero,
           value: _anonymous,
           onChanged: (v) => setState(() => _anonymous = v),
+          secondary: const Icon(Icons.visibility_off_rounded, color: AppColors.forest),
           title: const Text('Give anonymously', style: TextStyle(fontWeight: FontWeight.w600)),
-          subtitle: const Text('Other residents see "Anonymous" instead of your name'),
         ),
         if (widget.testMode) ...[
           const MessageBanner(
@@ -538,11 +561,22 @@ class _ContributeSheetState extends State<ContributeSheet> with WidgetsBindingOb
         ]),
       ]);
 
-  Widget _paid(ThemeData theme) => Column(mainAxisSize: MainAxisSize.min, children: [
-        const CircleAvatar(
-          radius: 34,
-          backgroundColor: AppColors.mint,
-          child: Icon(Icons.favorite_rounded, size: 36, color: AppColors.emerald),
+  Widget _paid(ThemeData theme) => ConfettiBurst(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0, end: 1),
+          duration: const Duration(milliseconds: 900),
+          curve: Curves.elasticOut,
+          builder: (_, v, child) => Transform.scale(scale: v, child: child),
+          child: Container(
+            width: 84,
+            height: 84,
+            decoration: BoxDecoration(
+              gradient: AppTheme.aiGradient,
+              shape: BoxShape.circle,
+              boxShadow: [BoxShadow(color: AppColors.emerald.withValues(alpha: 0.45), blurRadius: 24, spreadRadius: 2)],
+            ),
+            child: const Icon(Icons.favorite_rounded, size: 44, color: Colors.white),
+          ),
         ),
         const SizedBox(height: 14),
         Text('Thank you!', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
@@ -580,7 +614,7 @@ class _ContributeSheetState extends State<ContributeSheet> with WidgetsBindingOb
         ]),
         const SizedBox(height: 16),
         PrimaryButton(label: 'Done', onPressed: () => Navigator.pop(context, true)),
-      ]);
+      ]));
 
   Widget _failed(ThemeData theme) => Column(mainAxisSize: MainAxisSize.min, children: [
         const CircleAvatar(
@@ -693,4 +727,98 @@ class _NewCampaignSheetState extends State<_NewCampaignSheet> {
           ]),
         ),
       );
+}
+
+
+/// Tappable amount with a growth icon (seed → tree).
+class _AmountCard extends StatelessWidget {
+  const _AmountCard({required this.amount, required this.icon, required this.selected, required this.onTap});
+
+  final int amount;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => AnimatedScale(
+        scale: selected ? 1.06 : 1,
+        duration: const Duration(milliseconds: 180),
+        child: Material(
+          color: selected ? AppColors.forest : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: onTap,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: selected ? AppColors.forest : AppColors.mintLine, width: 1.5),
+              ),
+              child: Column(children: [
+                Icon(icon, color: selected ? AppColors.leaf : AppColors.emerald, size: 26),
+                const SizedBox(height: 4),
+                Text(inrCompact(amount),
+                    style: TextStyle(fontWeight: FontWeight.w800, color: selected ? Colors.white : AppColors.forestDark)),
+              ]),
+            ),
+          ),
+        ),
+      );
+}
+
+/// Where the fund is now (solid) and how far this gift pushes it (glowing).
+class _ImpactBar extends StatelessWidget {
+  const _ImpactBar({required this.campaign, required this.gift});
+
+  final Campaign campaign;
+  final int gift;
+
+  @override
+  Widget build(BuildContext context) {
+    final goal = campaign.goal.toDouble();
+    final now = (campaign.raised / goal).clamp(0.0, 1.0);
+    final after = ((campaign.raised + gift) / goal).clamp(0.0, 1.0);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: AppColors.canvas, borderRadius: BorderRadius.circular(14)),
+      child: Column(children: [
+        LayoutBuilder(builder: (_, box) {
+          final w = box.maxWidth;
+          return Stack(children: [
+            Container(height: 12, decoration: BoxDecoration(color: AppColors.mint, borderRadius: BorderRadius.circular(6))),
+            TweenAnimationBuilder<double>(
+              tween: Tween(end: after),
+              duration: const Duration(milliseconds: 450),
+              curve: Curves.easeOutCubic,
+              builder: (_, v, _) => Container(
+                width: w * v,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: AppColors.leaf,
+                  borderRadius: BorderRadius.circular(6),
+                  boxShadow: [BoxShadow(color: AppColors.leaf.withValues(alpha: 0.8), blurRadius: 8)],
+                ),
+              ),
+            ),
+            Container(
+              width: w * now,
+              height: 12,
+              decoration: BoxDecoration(color: AppColors.forest, borderRadius: BorderRadius.circular(6)),
+            ),
+          ]);
+        }),
+        const SizedBox(height: 8),
+        Row(children: [
+          Text('${(now * 100).round()}%', style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.inkMuted)),
+          const SizedBox(width: 6),
+          const Icon(Icons.arrow_forward_rounded, size: 16, color: AppColors.emerald),
+          const SizedBox(width: 6),
+          Text('${(after * 100).round()}%', style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.forest, fontSize: 16)),
+          const Spacer(),
+          const Icon(Icons.favorite_rounded, size: 16, color: AppColors.emerald),
+        ]),
+      ]),
+    );
+  }
 }

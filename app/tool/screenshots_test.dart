@@ -539,6 +539,10 @@ void main() {
   }
   testWidgets('29 error gallery', (t) => shot(t, '29_err_gallery', app(const ErrorGalleryScreen())));
   testWidgets('30 ward fund', (t) => shot(t, '30_funds', app(const FundsScreen())));
+  testWidgets('30b contribute sheet', (t) => shot(t, '30b_contribute', app(const FundsScreen()), before: (t) async {
+        await t.tap(find.text('Give again').first);
+        await settle(t);
+      }));
   testWidgets('31 chat (E2E)', (t) => shot(t, '31_chat', app(const ChatScreen())));
   testWidgets('32 admin inbox', (t) => shot(t, '32_inbox', app(const InboxScreen())));
   testWidgets('33 AI chat summary', (t) => shot(t, '33_chat_summary', app(ChatSummaryScreen(conversations: [
