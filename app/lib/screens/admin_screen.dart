@@ -8,10 +8,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/ward.dart';
 import '../providers/auth_provider.dart';
 import '../providers/ward_provider.dart';
+import '../services/ai_service.dart';
 import '../services/api_service.dart';
 import '../utils/categories.dart';
 import '../utils/errors.dart';
 import '../utils/format.dart';
+import '../theme.dart';
+import '../widgets/ai_widgets.dart';
 import '../widgets/common.dart';
 
 /// Admins only (guarded in router.dart and again by the server):
@@ -42,11 +45,15 @@ class _AdminScreenState extends State<AdminScreen> {
   final _title = TextEditingController();
   final _description = TextEditingController();
   final List<_BudgetLine> _lines = [_BudgetLine()];
+  final _idea = TextEditingController();
   late Future<List<Ward>> _wards;
   int? _wardId;
   String? _category;
   bool _saving = false;
+  bool _drafting = false;
+  bool _aiFilled = false; // show "review before publishing" hint
   String? _error;
+  String? _draftError;
 
   @override
   void initState() {
@@ -64,10 +71,54 @@ class _AdminScreenState extends State<AdminScreen> {
   void dispose() {
     _title.dispose();
     _description.dispose();
+    _idea.dispose();
     for (final l in _lines) {
       l.dispose();
     }
     super.dispose();
+  }
+
+  /// Ward Assistant turns one sentence into a full draft the admin can edit.
+  Future<void> _draftWithAi() async {
+    FocusScope.of(context).unfocus();
+    if (_wardId == null) {
+      setState(() => _draftError = 'Choose a ward first');
+      return;
+    }
+    if (_idea.text.trim().length < 5) {
+      setState(() => _draftError = 'Describe the project in a sentence');
+      return;
+    }
+    setState(() {
+      _drafting = true;
+      _draftError = null;
+    });
+    try {
+      final d = await AiService.draft(_idea.text.trim(), _wardId!);
+      if (!mounted) return;
+      setState(() {
+        _title.text = d.title;
+        _description.text = d.description;
+        _category = kCategories.contains(d.category) ? d.category : null;
+        for (final l in _lines) {
+          l.dispose();
+        }
+        _lines
+          ..clear()
+          ..addAll([
+            for (final i in d.items)
+              _BudgetLine()
+                ..label.text = i.label
+                ..amount.text = '${i.amount}',
+          ]);
+        if (_lines.isEmpty) _lines.add(_BudgetLine());
+        _aiFilled = true;
+      });
+    } catch (e) {
+      if (mounted) setState(() => _draftError = friendlyError(e));
+    } finally {
+      if (mounted) setState(() => _drafting = false);
+    }
   }
 
   int get _total => _lines.fold(0, (sum, l) => sum + l.value);
@@ -86,6 +137,8 @@ class _AdminScreenState extends State<AdminScreen> {
       ..clear()
       ..add(_BudgetLine());
     _category = null;
+    _idea.clear();
+    _aiFilled = false;
     _form.currentState?.reset();
   }
 
@@ -165,6 +218,20 @@ class _AdminScreenState extends State<AdminScreen> {
                   validator: (v) => v == null ? 'Choose a ward' : null,
                 ),
                 const SizedBox(height: 16),
+                _DraftPanel(
+                  idea: _idea,
+                  drafting: _drafting,
+                  error: _draftError,
+                  onDraft: _draftWithAi,
+                ),
+                const SizedBox(height: 20),
+                if (_aiFilled) ...[
+                  const MessageBanner(
+                    'Drafted by Ward Assistant. Check every line and amount before publishing.',
+                    isError: false,
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 TextFormField(
                   controller: _title,
                   textCapitalization: TextCapitalization.sentences,
@@ -277,6 +344,93 @@ class _AdminScreenState extends State<AdminScreen> {
   }
 }
 
+class _DraftPanel extends StatelessWidget {
+  const _DraftPanel({
+    required this.idea,
+    required this.drafting,
+    required this.error,
+    required this.onDraft,
+  });
+
+  final TextEditingController idea;
+  final bool drafting;
+  final String? error;
+  final VoidCallback onDraft;
+
+  static const _examples = [
+    '4 bus shelters with benches on Station Road',
+    'Free drinking water ATMs near 3 schools',
+    'LED lights and CCTV for the children\'s park',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return AiPanel(
+      footer: false,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Describe the project in one line.',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+          const SizedBox(height: 2),
+          const Text('The assistant drafts the title, category, description and a realistic ₹ breakdown.',
+              style: TextStyle(fontSize: 12.5, color: AppColors.inkMuted)),
+          const SizedBox(height: 12),
+          TextField(
+            controller: idea,
+            minLines: 1,
+            maxLines: 3,
+            enabled: !drafting,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(
+              hintText: 'e.g. 4 bus shelters on Station Road',
+              fillColor: AppColors.canvas,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(spacing: 6, runSpacing: 6, children: [
+            for (final e in _examples)
+              ActionChip(
+                label: Text(e, style: const TextStyle(fontSize: 12)),
+                visualDensity: VisualDensity.compact,
+                onPressed: drafting ? null : () => idea.text = e,
+              ),
+          ]),
+          if (error != null) ...[
+            const SizedBox(height: 10),
+            Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 13)),
+          ],
+          const SizedBox(height: 12),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 250),
+            child: drafting
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 6),
+                    child: AiShimmer(lines: 3, label: 'Drafting your proposal…'),
+                  )
+                : SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: AppTheme.aiGradient,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: TextButton.icon(
+                        onPressed: onDraft,
+                        style: TextButton.styleFrom(foregroundColor: Colors.white),
+                        icon: const Icon(Icons.auto_awesome, size: 18),
+                        label: const Text('Draft with AI', style: TextStyle(fontWeight: FontWeight.w800)),
+                      ),
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _TotalCard extends StatelessWidget {
   const _TotalCard({required this.total, required this.pool});
 
@@ -286,46 +440,35 @@ class _TotalCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
     final share = (pool == null || pool == 0) ? 0.0 : total / pool!;
     final over = share > 1;
 
-    return Card(
-      color: scheme.primaryContainer,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Total cost',
-                style: theme.textTheme.labelLarge?.copyWith(color: scheme.onPrimaryContainer)),
-            const SizedBox(height: 4),
-            Text(inr(total),
-                style: theme.textTheme.headlineMedium
-                    ?.copyWith(fontWeight: FontWeight.bold, color: scheme.onPrimaryContainer)),
-            if (pool != null) ...[
-              const SizedBox(height: 12),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                  value: math.min(1.0, share),
-                  minHeight: 8,
-                  color: over ? scheme.error : null,
-                  backgroundColor: scheme.onPrimaryContainer.withValues(alpha: 0.15),
-                ),
+    return HeroCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('TOTAL COST',
+              style: theme.textTheme.labelMedium
+                  ?.copyWith(color: AppColors.leaf, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
+          const SizedBox(height: 4),
+          Text(inr(total),
+              style: theme.textTheme.headlineMedium
+                  ?.copyWith(fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.5)),
+          if (pool != null) ...[
+            const SizedBox(height: 14),
+            HeroProgress(value: math.min(1.0, share), warning: over),
+            const SizedBox(height: 8),
+            Text(
+              over
+                  ? 'Exceeds the ward pool (${inrCompact(pool!)}): it can never be funded.'
+                  : '${(share * 100).toStringAsFixed(0)}% of the ward pool (${inrCompact(pool!)})',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: over ? const Color(0xFFFFD2CB) : Colors.white.withValues(alpha: 0.85),
+                fontWeight: over ? FontWeight.bold : null,
               ),
-              const SizedBox(height: 8),
-              Text(
-                over
-                    ? 'Exceeds the ward pool (${inrCompact(pool!)}) — it can never be funded.'
-                    : '${(share * 100).toStringAsFixed(0)}% of the ward pool (${inrCompact(pool!)})',
-                style: theme.textTheme.bodySmall?.copyWith(
-                    color: over ? scheme.error : scheme.onPrimaryContainer,
-                    fontWeight: over ? FontWeight.bold : null),
-              ),
-            ],
+            ),
           ],
-        ),
+        ],
       ),
     );
   }

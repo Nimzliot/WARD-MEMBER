@@ -22,5 +22,9 @@ services:
         sync: false
       - key: VOTE_SALT
         sync: false          # use the SAME value as your local server/.env, or existing votes won't match their voter
+      - key: GEMINI_API_KEY
+        sync: false          # Google AI Studio key for Ward Assistant
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
       - key: DEV_MODE
         value: "false"

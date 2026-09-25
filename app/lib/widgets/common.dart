@@ -64,6 +64,66 @@ class MessageBanner extends StatelessWidget {
   }
 }
 
+/// Deep-green gradient card with soft decorative rings — used for the key
+/// number on a screen (budget pool, turnout, proposal total).
+class HeroCard extends StatelessWidget {
+  const HeroCard({super.key, required this.child, this.padding = const EdgeInsets.all(20)});
+
+  final Widget child;
+  final EdgeInsets padding;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget ring(double size) => Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 18),
+          ),
+        );
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        gradient: AppTheme.heroGradient,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(color: AppColors.forest.withValues(alpha: 0.25), blurRadius: 18, offset: const Offset(0, 8)),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Positioned(right: -40, top: -50, child: ring(170)),
+          Positioned(right: 40, bottom: -70, child: ring(120)),
+          Padding(
+            padding: padding,
+            child: DefaultTextStyle.merge(style: const TextStyle(color: Colors.white), child: child),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// White progress bar on a hero card.
+class HeroProgress extends StatelessWidget {
+  const HeroProgress({super.key, required this.value, this.warning = false});
+
+  final double value;
+  final bool warning;
+
+  @override
+  Widget build(BuildContext context) => ClipRRect(
+        borderRadius: BorderRadius.circular(6),
+        child: LinearProgressIndicator(
+          value: value.clamp(0.0, 1.0),
+          minHeight: 8,
+          color: warning ? const Color(0xFFFFB4A8) : AppColors.leaf,
+          backgroundColor: Colors.white.withValues(alpha: 0.18),
+        ),
+      );
+}
+
 /// Centered error message with a Retry button (for failed loads).
 class ErrorView extends StatelessWidget {
   const ErrorView({super.key, required this.message, required this.onRetry});

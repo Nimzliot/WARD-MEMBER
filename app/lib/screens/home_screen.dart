@@ -70,8 +70,8 @@ class _HomeScreenState extends State<HomeScreen> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
-          Text('Namaste, ${fullName?.split(' ').first ?? ''} 👋',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+          Text('Namaste, ${fullName?.split(' ').first ?? ''}',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.5)),
           const SizedBox(height: 12),
           if (wp.ward != null) _BudgetSummaryCard(ward: wp.ward!, requested: wp.totalRequested, count: wp.proposals.length),
           const SizedBox(height: 12),
@@ -127,43 +127,48 @@ class _BudgetSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
     final over = requested - ward.budgetPool;
     final fundable = requested == 0 ? 1.0 : math.min(1.0, ward.budgetPool / requested);
+    final soft = Colors.white.withValues(alpha: 0.85);
 
-    return Card(
-      color: scheme.primaryContainer,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Ward budget pool',
-                style: theme.textTheme.labelLarge?.copyWith(color: scheme.onPrimaryContainer)),
-            const SizedBox(height: 4),
-            Text(inr(ward.budgetPool),
-                style: theme.textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold, color: scheme.onPrimaryContainer)),
-            const SizedBox(height: 12),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: fundable,
-                minHeight: 8,
-                backgroundColor: scheme.onPrimaryContainer.withValues(alpha: 0.15),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '$count proposals ask for ${inrCompact(requested)}. '
-              '${over > 0 ? 'That is ${inrCompact(over)} more than the pool — your vote decides what gets funded.' : 'All proposals fit within the pool.'}',
-              style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onPrimaryContainer),
-            ),
-          ],
-        ),
+    return HeroCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('WARD BUDGET POOL',
+              style: theme.textTheme.labelMedium
+                  ?.copyWith(color: AppColors.leaf, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
+          const SizedBox(height: 4),
+          Text(inr(ward.budgetPool),
+              style: theme.textTheme.headlineMedium
+                  ?.copyWith(fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.6)),
+          const SizedBox(height: 16),
+          Row(children: [
+            _stat(theme, '$count', 'proposals'),
+            _stat(theme, inrCompact(requested), 'requested'),
+            _stat(theme, '${(fundable * 100).round()}%', 'can be funded'),
+          ]),
+          const SizedBox(height: 14),
+          HeroProgress(value: fundable),
+          const SizedBox(height: 10),
+          Text(
+            over > 0
+                ? 'Requests exceed the pool by ${inrCompact(over)}. Your vote decides what gets built.'
+                : 'All proposals fit within the pool.',
+            style: theme.textTheme.bodySmall?.copyWith(color: soft, height: 1.4),
+          ),
+        ],
       ),
     );
   }
+
+  Widget _stat(ThemeData theme, String value, String label) => Expanded(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(value,
+              style: theme.textTheme.titleMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+          Text(label, style: theme.textTheme.bodySmall?.copyWith(color: Colors.white.withValues(alpha: 0.7))),
+        ]),
+      );
 }
 
 class _VoteStatusCard extends StatelessWidget {

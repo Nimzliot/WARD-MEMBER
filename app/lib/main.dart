@@ -53,7 +53,7 @@ class _WardBudgetAppState extends State<WardBudgetApp> {
         title: 'Ward Budget',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light,
-        darkTheme: AppTheme.dark,
+        themeMode: ThemeMode.light, // brand is green & white
         routerConfig: _router,
       );
 }

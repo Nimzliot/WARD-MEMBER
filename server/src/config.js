@@ -18,6 +18,8 @@ module.exports = {
   fast2smsKey: process.env.FAST2SMS_API_KEY,
   voteSalt: process.env.VOTE_SALT,
   devMode,
+  geminiKey: process.env.GEMINI_API_KEY, // optional — AI features return 503 without it
+  geminiModel: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
   otp: {
     ttlMs: 5 * 60 * 1000, // code valid for 5 minutes
     resendMs: 60 * 1000, // resend allowed after 60 seconds

@@ -11,6 +11,7 @@ import '../theme.dart';
 import '../utils/categories.dart';
 import '../utils/errors.dart';
 import '../utils/format.dart';
+import '../widgets/ai_widgets.dart';
 import '../widgets/budget_breakdown.dart';
 import '../widgets/common.dart';
 import '../widgets/vote_receipt_sheet.dart';
@@ -122,6 +123,7 @@ class _ProposalDetailScreenState extends State<ProposalDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Proposal')),
+      floatingActionButton: AskAiButton(onPressed: () => showAskSheet(context, p)),
       bottomNavigationBar: _VoteBar(
         proposal: p,
         votedForId: wp.myVoteProposalId,
@@ -135,7 +137,7 @@ class _ProposalDetailScreenState extends State<ProposalDetailScreen> {
       body: RefreshIndicator(
         onRefresh: wp.load,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 96), // room for the Ask AI button
           children: [
             Row(children: [
               Chip(
@@ -145,36 +147,39 @@ class _ProposalDetailScreenState extends State<ProposalDetailScreen> {
               ),
             ]),
             const SizedBox(height: 8),
-            Text(p.title, style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+            Text(p.title,
+                style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.4)),
             const SizedBox(height: 8),
-            Text(p.description, style: theme.textTheme.bodyLarge),
+            Text(p.description,
+                style: theme.textTheme.bodyLarge?.copyWith(color: scheme.onSurfaceVariant, height: 1.45)),
             const SizedBox(height: 20),
 
             // Cost vs ward pool
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Total cost', style: theme.textTheme.labelLarge),
-                    const SizedBox(height: 4),
-                    Text(inr(p.totalCost),
-                        style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 12),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: LinearProgressIndicator(value: math.min(1.0, share), minHeight: 8),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '${(share * 100).toStringAsFixed(0)}% of the ward pool (${inrCompact(pool)})',
-                      style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
-                    ),
-                  ],
-                ),
+            HeroCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('TOTAL COST',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                          color: AppColors.leaf, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
+                  const SizedBox(height: 4),
+                  Text(inr(p.totalCost),
+                      style: theme.textTheme.headlineMedium
+                          ?.copyWith(fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.5)),
+                  const SizedBox(height: 14),
+                  HeroProgress(value: math.min(1.0, share)),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${(share * 100).toStringAsFixed(0)}% of the ward pool (${inrCompact(pool)})',
+                    style: theme.textTheme.bodySmall?.copyWith(color: Colors.white.withValues(alpha: 0.85)),
+                  ),
+                ],
               ),
             ),
+            const SizedBox(height: 16),
+
+            // Ward Assistant — plain-language explanation in EN / Tamil / Hindi
+            ExplainCard(key: ValueKey(p.id), proposal: p),
             const SizedBox(height: 24),
 
             Text('Budget breakdown',

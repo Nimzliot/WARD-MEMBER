@@ -10,6 +10,7 @@ import '../providers/ward_provider.dart';
 import '../theme.dart';
 import '../utils/chart_colors.dart';
 import '../utils/format.dart';
+import '../widgets/ai_widgets.dart';
 import '../widgets/common.dart';
 
 class ResultsScreen extends StatefulWidget {
@@ -78,6 +79,9 @@ class _ResultsScreenState extends State<ResultsScreen> {
                     children: [
                       _TurnoutCard(results: results, wardName: wp.ward!.name),
                       const SizedBox(height: 16),
+                      // Ward Assistant reads the live numbers (re-runs as votes come in)
+                      InsightCard(wardId: wp.ward!.id, totalVotes: results.totalVotes),
+                      if (results.totalVotes > 0) const SizedBox(height: 16),
                       _VotesCard(alloc: alloc, totalVotes: results.totalVotes, myVoteId: wp.myVoteProposalId),
                       const SizedBox(height: 16),
                       _AllocationCard(alloc: alloc),
@@ -152,53 +156,43 @@ class _TurnoutCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
     final pct = (results.turnout * 100).toStringAsFixed(0);
+    final soft = Colors.white.withValues(alpha: 0.85);
 
-    return Card(
-      color: scheme.primaryContainer,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Turnout · $wardName',
-                style: theme.textTheme.labelLarge?.copyWith(color: scheme.onPrimaryContainer)),
-            const SizedBox(height: 4),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text('$pct%',
-                    style: theme.textTheme.displaySmall
-                        ?.copyWith(fontWeight: FontWeight.bold, color: scheme.onPrimaryContainer)),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Text(
-                      '${results.totalVotes} of ${results.eligible} verified residents voted',
-                      style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onPrimaryContainer),
-                    ),
+    return HeroCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('TURNOUT · ${wardName.toUpperCase()}',
+              style: theme.textTheme.labelMedium
+                  ?.copyWith(color: AppColors.leaf, fontWeight: FontWeight.w800, letterSpacing: 1.1)),
+          const SizedBox(height: 6),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text('$pct%',
+                  style: theme.textTheme.displaySmall
+                      ?.copyWith(fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -1)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    '${results.totalVotes} of ${results.eligible} verified residents voted',
+                    style: theme.textTheme.bodyMedium?.copyWith(color: soft),
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: math.min(1.0, results.turnout),
-                minHeight: 8,
-                backgroundColor: scheme.onPrimaryContainer.withValues(alpha: 0.15),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              results.lastVoteAt == null ? 'No votes yet' : 'Last vote ${timeAgo(results.lastVoteAt!)}',
-              style: theme.textTheme.bodySmall?.copyWith(color: scheme.onPrimaryContainer),
-            ),
-          ],
-        ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          HeroProgress(value: math.min(1.0, results.turnout)),
+          const SizedBox(height: 8),
+          Text(
+            results.lastVoteAt == null ? 'No votes yet' : 'Last vote ${timeAgo(results.lastVoteAt!)}',
+            style: theme.textTheme.bodySmall?.copyWith(color: soft),
+          ),
+        ],
       ),
     );
   }
